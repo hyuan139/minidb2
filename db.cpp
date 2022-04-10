@@ -647,10 +647,38 @@ int sem_create_table(token_list *t_list)
 			}
 		}
 	}
-	printf("\nPREPARING TO CREATE .tab file\n");
+	// printf("\nPREPARING TO CREATE .tab file\n");
+	//  create <table_name>.tab file
+	FILE *fhandle = NULL;
 
-	printf("\nFINISHED TO CREATE .tab file\n");
-	fflush(stdout);
+	table_file_header *tab_header;
+	fhandle = fopen(strcat(tab_entry.table_name, ".tab"), "wbc");
+	int record_size = 0; // round to nearest 4 bytes
+	int j = 0;
+	while (j < cur_id)
+	{
+		record_size += (1 + col_entry[j].col_len); // Gets record size
+		j++;
+	}
+	// round to nearest 4 bytes
+	if (record_size % 4 != 0)
+	{
+		record_size = record_size + (4 - (record_size % 4));
+	}
+	// printf("\nRecord size: %d\n", record_size);
+	// printf("\nWORKING WITH tab header\n");
+	tab_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	tab_header->record_size = record_size;
+	tab_header->num_records = 0;
+	tab_header->file_header_flag = 0; // Just set to 0.
+	// tab_header->tpd_ptr->tpd_size = 0; // Just set to 0. Apparently just for convenience, don't need to use. // Apparently Causing segmentation fault
+	tab_header->record_offset = sizeof(table_file_header); // size of header (minimum 24)
+	tab_header->file_size = sizeof(table_file_header);
+	// printf("\nEND WORKING WITH tab header\n");
+	fwrite(tab_header, sizeof(tab_header), 6, fhandle);
+	fflush(fhandle);
+	fclose(fhandle);
+	// printf("\nFINISHED TO CREATE .tab file\n");
 	return rc;
 }
 

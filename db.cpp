@@ -647,6 +647,10 @@ int sem_create_table(token_list *t_list)
 			}
 		}
 	}
+	printf("\nPREPARING TO CREATE .tab file\n");
+
+	printf("\nFINISHED TO CREATE .tab file\n");
+	fflush(stdout);
 	return rc;
 }
 

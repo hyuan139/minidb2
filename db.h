@@ -56,6 +56,16 @@ typedef struct t_list
 	struct t_list *next;
 } token_list;
 
+typedef struct table_file_header_def
+{
+	int file_size;		  // 4 bytes
+	int record_size;	  // 4 bytes
+	int num_records;	  // 4 bytes
+	int record_offset;	  // 4 bytes
+	int file_header_flag; // 4 bytes
+	tpd_entry *tpd_ptr;	  // 8 bytes. (e.g. 64-bit pointer)
+} table_file_header;	  // minimum size = 28
+
 /* This enum defines the different classes of tokens for
 	 semantic processing. */
 typedef enum t_class

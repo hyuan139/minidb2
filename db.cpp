@@ -719,6 +719,11 @@ int sem_drop_table(token_list *t_list)
 		}
 	}
 
+	// Drop .tab file
+	if (remove(strcat(cur->tok_string, ".tab")) != 0)
+	{
+		printf("\n%s.tab file failed to delete\n", cur->tok_string);
+	}
 	return rc;
 }
 

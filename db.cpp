@@ -903,7 +903,117 @@ int sem_list_schema(token_list *t_list)
 int sem_insert(token_list *t_list)
 {
 	int rc = 0;
+	token_list *cur;
+	cur = t_list;
 	printf("\nIn sem_insert\n");
+	// Example: insert into students values(3,'John','Doe', 9)
+	// TODO:
+	// 1) Find the table to insert row (DONE?)
+	// 2) Modify the .tab file
+	printf("\nToken: %s\n", cur->tok_string);
+	table_file_header *old_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	FILE *fhandle = NULL;
+	char filename[MAX_IDENT_LEN + 4];
+	char tablename[MAX_IDENT_LEN + 1];
+	strcpy(tablename, cur->tok_string);
+	strcpy(filename, strcat(cur->tok_string, ".tab"));
+	if ((fhandle = fopen(filename, "rbc")) == NULL)
+	{
+		printf("Error while opening %s file\n", filename);
+		rc = FILE_OPEN_ERROR;
+		cur->tok_value = INVALID;
+	}
+	else
+	{
+		// Read the old header information from the tab file.
+		fread(old_header, sizeof(table_file_header), 1, fhandle);
+		old_header->tpd_ptr = get_tpd_from_list(tablename);
+		fclose(fhandle);
+		rc = add_row_to_file(old_header, cur->next);
+		if (rc == 0)
+		{
+			printf("row inserted successfully.\n");
+			free(old_header);
+		}
+		else
+		{
+			printf("Failure to insert.\n");
+		}
+	}
+
+	return rc;
+}
+
+int add_row_to_file(table_file_header *old_head, token_list *t_list)
+{
+	int rc = 0;
+	token_list *cur = t_list;
+	table_file_header *old_header = old_head;
+	table_file_header *new_record = NULL;
+	cd_entry col_entry[MAX_NUM_COL];
+	bool column_done = false;
+	printf("\nAdding row to file...\n");
+	printf("\nCurrent token: %s\n", cur->tok_string);
+	printf("\nSize of file: %d, Record size: %d, Num of records: %d\n", old_header->file_size, old_header->record_size, old_header->num_records);
+	// Example: insert into students values(3,'John','Doe', 9)
+	if (cur->tok_class != keyword)
+	{
+		// error; current token is not "Values"
+		rc = INVALID_STATEMENT;
+		cur->tok_value = INVALID;
+	}
+	else
+	{
+		cur = cur->next;
+		if (cur->tok_value != S_LEFT_PAREN)
+		{
+			// error
+			rc = INVALID_INSERT_DEFINITION;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			memset(&col_entry, '\0', (MAX_NUM_COL * sizeof(cd_entry)));
+			cur = cur->next; // get token after left paren
+			// loop through tokens for columns
+			do
+			{
+				// should be a value for column field
+				if ((cur->tok_value != INT_LITERAL) && (cur->tok_value != STRING_LITERAL))
+				{
+					printf("\nERROR in FIRST IF\n");
+					rc = INVALID_INSERT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+				else
+				{
+					// current token is either STRING OR INT Literal
+					printf("\nToken: %s\n", cur->tok_string);
+					cur = cur->next;
+					// token must either be comma or right paren
+					if (!rc)
+					{
+						if ((cur->tok_value != S_COMMA) && (cur->tok_value != S_RIGHT_PAREN))
+						{
+							printf("\nERROR in SECOND IF\n");
+							rc = INVALID_INSERT_DEFINITION;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							if (cur->tok_value == S_RIGHT_PAREN)
+							{
+								column_done = true;
+							}
+							// consume the comma
+							cur = cur->next;
+						}
+					}
+				}
+			} while ((rc == 0) && !column_done);
+		}
+	}
+	printf("\nDone Adding row to file...\n");
 	return rc;
 }
 

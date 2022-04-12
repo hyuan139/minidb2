@@ -1039,7 +1039,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 		{
 			oldFileSize = old_header->file_size;
 			new_header = (table_file_header *)calloc(1, sizeof(table_file_header) + (old_header->record_size * (1 * (old_header->num_records + 1))));
-			memcpy((void *)new_header, (void *)old_header, sizeof(table_file_header));
+			memcpy((void *)((char *)new_header), (void *)((char *)old_header), sizeof(table_file_header) + (old_header->record_size * old_header->num_records));
 			new_header->num_records += 1;
 			new_header->file_size = oldFileSize + old_header->record_size;
 			new_header->tpd_ptr = 0;
@@ -1085,7 +1085,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 			// Use a char buffer array to write the record,
 			// then use memcpy to copy the record to the .tab file
 			// memcpy((void *)((char *)new_header + new_header->record_offset), (void *)((char *)*record_ptr), old_header->record_size);
-			memcpy((void *)((char *)new_header + new_header->record_offset), (void *)((char *)recordBuffer), old_header->record_size);
+			memcpy((void *)((char *)new_header + new_header->record_offset + (old_header->record_size * old_header->num_records)), (void *)((char *)recordBuffer), old_header->record_size);
 			// fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * old_header->num_records), 1, fhandle);
 			fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * new_header->num_records) - 4, 1, fhandle);
 			fflush(fhandle);

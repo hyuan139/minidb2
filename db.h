@@ -63,8 +63,8 @@ typedef struct table_file_header_def
 	int num_records;	  // 4 bytes
 	int record_offset;	  // 4 bytes
 	int file_header_flag; // 4 bytes
-	tpd_entry *tpd_ptr;	  // 8 bytes. (e.g. 64-bit pointer) | 4 bytes in my case
-} table_file_header;	  // minimum size = 28 | minimum size = 24 in my case
+	tpd_entry *tpd_ptr;	  // 8 bytes. (e.g. 64-bit pointer)
+} table_file_header;	  // minimum size = 28
 
 /* This enum defines the different classes of tokens for
 	 semantic processing. */

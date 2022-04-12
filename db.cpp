@@ -667,15 +667,19 @@ int sem_create_table(token_list *t_list)
 	}
 	// printf("\nRecord size: %d\n", record_size);
 	// printf("\nWORKING WITH tab header\n");
-	tab_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	// tab_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	tab_header = (table_file_header *)calloc(1, sizeof(table_file_header) - 4); // -4 for bytes from pointer
 	tab_header->record_size = record_size;
 	tab_header->num_records = 0;
 	tab_header->file_header_flag = 0; // Just set to 0.
 	// tab_header->tpd_ptr->tpd_size = 0; // Just set to 0. Apparently just for convenience, don't need to use. // Apparently Causing segmentation fault
-	tab_header->record_offset = sizeof(table_file_header); // size of header (minimum 24)
-	tab_header->file_size = sizeof(table_file_header);
-	// printf("\nEND WORKING WITH tab header\n");
-	fwrite(tab_header, sizeof(tab_header), 6, fhandle);
+	tab_header->record_offset = sizeof(table_file_header) - 4; // size of header (minimum 28); -4 bytes for pointer
+	tab_header->file_size = sizeof(table_file_header) - 4;	   // -4 bytes for the pointer
+	// printf("\nSize of tab_file_header: %d\n", sizeof(tab_header->file_size) + sizeof(tab_header->record_size) + +sizeof(tab_header->num_records) + sizeof(tab_header->record_offset) + sizeof(tab_header->file_header_flag) + sizeof(tab_header->tpd_ptr));
+	//  printf("\nEND WORKING WITH tab header\n");
+	printf("\nSize of tab_header: %d\n", sizeof(tab_header));
+	// fwrite(tab_header, sizeof(tab_header), 6, fhandle);
+	fwrite(tab_header, sizeof(table_file_header) - 4, 1, fhandle);
 	fflush(fhandle);
 	fclose(fhandle);
 	// printf("\nFINISHED TO CREATE .tab file\n");

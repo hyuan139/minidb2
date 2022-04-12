@@ -1093,7 +1093,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 			// printf("\n");
 
 			// fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * old_header->num_records), 1, fhandle);
-			fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * new_header->num_records), 1, fhandle);
+			fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * new_header->num_records) - 4, 1, fhandle);
 			fflush(fhandle);
 			fclose(fhandle);
 			// .tab file not increasing file size despite what is reflected in the .tab file

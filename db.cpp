@@ -1053,38 +1053,42 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 			//  printf("\nBefore increments, Address of recordBuffer: %p\n", &recordBuffer);
 			int i = 0;
 			int k = 0;
+			char hexString[16];
+			int value_num = 0;
+			int int_size = sizeof(int);
+			int string_size = 0;
 			for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
 			{
 				printf("\nValue: %s\n", column_values[i]);
+				memset((void *)hexString, '\0', 16);
 				// add column value to record buffer
 				if (col_entry->col_type == T_INT)
 				{
 					// memcpy((void *)((char *)recordBuffer), (void *)sizeof(int), sizeof(int));
 					// memcpy((void *)((char *)recordBuffer), (void *)((char *)'1'), 1); // Segmentation faulting
-					// recordBuffer += 1;
+					// sprintf(hexString, "%X", sizeof(int));
+					memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&int_size), 1);
 					recordBuffer[k];
 					k++; // take 1 byte
 					//*(recordBuffer + 1);
 					// memcpy((void *)recordBuffer, (void *)column_values[i], strlen(column_values[i]));
 					//	memcpy((void *)recordBuffer, (void *)column_values[i], sizeof(int));
-					//	printf(recordBuffer);
-					// recordBuffer += strlen(column_values[i]);
-					// recordBuffer += sizeof(int);
-					//*(recordBuffer + sizeof(int));
-					// recordBuffer[k] += strlen(column_values[i]);
+					memset((void *)hexString, '\0', 16);
+					value_num = atoi(column_values[i]);
+					// sprintf(hexString, "%X", value_num);
+					memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&value_num), sizeof(int));
 					recordBuffer[k];
 					k += sizeof(int);
 				}
 				else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
 				{
-					//	memcpy((void *)((char *)recordBuffer), (void *)((char *)col_entry->col_len), 1);
-					// memcpy((void *)((char *)recordBuffer), (void *)((char *)'1'), 1); // Segmentation faulting
-					// recordBuffer += 1;
-					//*(recordBuffer + 1);
+					// memcpy length of value
+					// sprintf(hexString, "%X", strlen(column_values[i]));
+					string_size = strlen(column_values[i]);
+					memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&string_size), 1);
 					recordBuffer[k];
 					k++;
 					memcpy((void *)((char *)recordBuffer + k), (void *)column_values[i], strlen(column_values[i]));
-
 					k += col_entry->col_len;
 				}
 			}

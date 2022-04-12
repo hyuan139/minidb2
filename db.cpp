@@ -960,7 +960,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 	int colNum = 0;
 	int oldFileSize = 0;
 	char column_values[MAX_NUM_COL][1024];
-	char *record_ptr;
+	char **record_ptr;
 	printf("\nAdding row to file...\n");
 	// printf("\nCurrent token: %s\n", cur->tok_string);
 	printf("\nSize of file: %d, Record size: %d, Num of records: %d\n", old_header->file_size, old_header->record_size, old_header->num_records);
@@ -1035,17 +1035,17 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 		else
 		{
 			oldFileSize = old_header->file_size;
-			new_header = (table_file_header *)calloc(1, sizeof(table_file_header) + old_header->record_size);
+			new_header = (table_file_header *)calloc(1, sizeof(table_file_header) + (old_header->record_size * (1 * (old_header->num_records + 1))));
 			memcpy((void *)new_header, (void *)old_header, sizeof(table_file_header));
 			new_header->num_records += 1;
 			new_header->file_size = oldFileSize + old_header->record_size;
-			// new_header->record_offset += old_header->record_size;
-			new_header->record_offset = old_header->record_size;
 			new_header->tpd_ptr = 0;
 			printf("\nNew Header file size: %d\n", new_header->file_size);
 			printf("\nNew Header number of records: %d\n", new_header->num_records);
-			recordBuffer = (char *)calloc(1, 1024);
-			record_ptr = recordBuffer;
+			recordBuffer = (char *)calloc(1, old_header->record_size);
+			memset((void *)recordBuffer, '\0', old_header->record_size);
+			record_ptr = &recordBuffer;
+			// printf("\nBefore increments, Address of recordBuffer: %p\n", &recordBuffer);
 			int i = 0;
 			for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
 			{
@@ -1054,28 +1054,42 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 				if (col_entry->col_type == T_INT)
 				{
 					// memcpy((void *)((char *)recordBuffer), (void *)sizeof(int), sizeof(int));
-					//  strcat(recordBuffer, "4");				   // length of field
-					memcpy((void *)recordBuffer, (void *)column_values[i], strlen(column_values[i]));
-					recordBuffer += strlen(column_values[i]);
+					// memcpy((void *)((char *)recordBuffer), (void *)((char *)'1'), 1); // Segmentation faulting
+					//	recordBuffer += 1;
+					// memcpy((void *)recordBuffer, (void *)column_values[i], strlen(column_values[i]));
+					//	memcpy((void *)recordBuffer, (void *)column_values[i], sizeof(int));
+					//	printf(recordBuffer);
+					// recordBuffer += strlen(column_values[i]);
+					//	recordBuffer += sizeof(int);
+					//	printf(recordBuffer);
 					// strcat(recordBuffer, col_entry->col_name); // value
 				}
 				else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
 				{
-					// provide string data here
-					// strcat(recordBuffer, col_entry[].col_len);
-					// strcat(recordBuffer, col_entry->col_name);
-					// printf("\nConcateneated to record buffer: %s\n", col_entry->col_name);
 					//	memcpy((void *)((char *)recordBuffer), (void *)((char *)col_entry->col_len), 1);
-					memcpy((void *)recordBuffer, (void *)column_values[i], strlen(column_values[i]));
-					recordBuffer += strlen(column_values[i]);
+					// memcpy((void *)((char *)recordBuffer), (void *)((char *)'1'), 1); // Segmentation faulting
+					// recordBuffer += 1;
+					// memcpy((void *)recordBuffer, (void *)column_values[i], strlen(column_values[i]));
+					// printf(recordBuffer);
+					// recordBuffer += strlen(column_values[i]);
+					// printf(recordBuffer);
 				}
 			}
 			// memcpy() new row record into new_header tab file
 			// Use a char buffer array to write the record,
 			// then use memcpy to copy the record to the .tab file
-			memcpy((void *)((char *)new_header + new_header->record_offset), (void *)((char *)record_ptr), strlen(record_ptr));
+			// memcpy((void *)((char *)new_header + new_header->record_offset), (void *)((char *)*record_ptr), old_header->record_size);
+			// printf("\nAfter increments, Address of recordBuffer: %p\n", &recordBuffer);
+			// printf("\nAddress of record_ptr: %p\n", &record_ptr);
+			// printf("\nContent in recordBuffer: ");
+			// printf(recordBuffer);
+			// printf("\n");
+			// printf("\nContent in record: \n");
+			// printf(*record_ptr);
+			// printf("\n");
+
 			// fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * old_header->num_records), 1, fhandle);
-			fwrite(new_header, sizeof(table_file_header) + old_header->record_size, 1, fhandle);
+			fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * new_header->num_records), 1, fhandle);
 			fflush(fhandle);
 			fclose(fhandle);
 			// .tab file not increasing file size despite what is reflected in the .tab file

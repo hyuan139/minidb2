@@ -668,17 +668,18 @@ int sem_create_table(token_list *t_list)
 	// printf("\nRecord size: %d\n", record_size);
 	// printf("\nWORKING WITH tab header\n");
 	// tab_header = (table_file_header *)calloc(1, sizeof(table_file_header));
-	tab_header = (table_file_header *)calloc(1, sizeof(table_file_header) - 4); // -4 for bytes from pointer
+	tab_header = (table_file_header *)calloc(1, sizeof(table_file_header)); // -4 for bytes from pointer
 	tab_header->record_size = record_size;
 	tab_header->num_records = 0;
 	tab_header->file_header_flag = 0; // Just set to 0.
 	// tab_header->tpd_ptr->tpd_size = 0; // Just set to 0. Apparently just for convenience, don't need to use. // Apparently Causing segmentation fault
-	tab_header->record_offset = sizeof(table_file_header) - 4; // size of header (minimum 28); -4 bytes for pointer
-	tab_header->file_size = sizeof(table_file_header) - 4;	   // -4 bytes for the pointer
+	tab_header->record_offset = sizeof(table_file_header); // size of header (minimum 28); -4 bytes for pointer
+	tab_header->file_size = sizeof(table_file_header);	   // -4 bytes for the pointer
 	// printf("\nSize of tab_file_header: %d\n", sizeof(tab_header->file_size) + sizeof(tab_header->record_size) + +sizeof(tab_header->num_records) + sizeof(tab_header->record_offset) + sizeof(tab_header->file_header_flag) + sizeof(tab_header->tpd_ptr));
 	//  printf("\nEND WORKING WITH tab header\n");
 	// fwrite(tab_header, sizeof(tab_header), 6, fhandle);
-	fwrite(tab_header, sizeof(table_file_header) - 4, 1, fhandle);
+	// fwrite(tab_header, sizeof(table_file_header) - 4, 1, fhandle);
+	fwrite(tab_header, sizeof(table_file_header), 1, fhandle);
 	fflush(fhandle);
 	fclose(fhandle);
 	// printf("\nFINISHED TO CREATE .tab file\n");
@@ -964,9 +965,9 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 	int oldFileSize = 0;
 	char column_values[MAX_NUM_COL][1024];
 	char **record_ptr;
-	printf("\nAdding row to file...\n");
-	// printf("\nCurrent token: %s\n", cur->tok_string);
-	printf("\nSize of file: %d, Record size: %d, Num of records: %d\n", old_header->file_size, old_header->record_size, old_header->num_records);
+	char *old_file;
+	oldFileSize = old_header->file_size;
+	old_file = (char *)calloc(1, oldFileSize);
 	// Example: insert into students values(3,'John','Doe', 9)
 	if (cur->tok_class != keyword)
 	{
@@ -1030,71 +1031,63 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 	{
 		strcpy(tablename, tab_entry->table_name);
 		strcpy(filename, strcat(tablename, ".tab"));
-		printf("\nFile:  %s\n", filename);
-		if ((fhandle = fopen(filename, "wbc")) == NULL) // change this to "wbc" for now; use memcpy to save old copy?
+		new_header = (table_file_header *)calloc(1, sizeof(table_file_header) + (old_header->record_size * (1 * (old_header->num_records + 1))));
+		if ((fhandle = fopen(filename, "rbc")) == NULL)
 		{
 			rc = FILE_OPEN_ERROR;
+			printf("\nFailed to open file\n");
 		}
 		else
 		{
-			oldFileSize = old_header->file_size;
-			new_header = (table_file_header *)calloc(1, sizeof(table_file_header) + (old_header->record_size * (1 * (old_header->num_records + 1))));
-			memcpy((void *)((char *)new_header), (void *)((char *)old_header), sizeof(table_file_header) + (old_header->record_size * old_header->num_records));
-			new_header->num_records += 1;
-			new_header->file_size = oldFileSize + old_header->record_size;
-			new_header->tpd_ptr = 0;
-			printf("\nNew Header file size: %d\n", new_header->file_size);
-			printf("\nNew Header number of records: %d\n", new_header->num_records);
-			recordBuffer = (char *)calloc(1, old_header->record_size);
-			memset((void *)recordBuffer, '\0', old_header->record_size);
-			record_ptr = &recordBuffer;
-			// printf("\nAddress of record buffer: %p\n", &recordBuffer);
-			// printf("\nValue record_ptr is pointing to: %p\n", &*record_ptr);
-			//  printf("\nBefore increments, Address of recordBuffer: %p\n", &recordBuffer);
-			int i = 0;
-			int k = 0;
-			int value_num = 0;
-			int int_size = sizeof(int);
-			int string_size = 0;
-			for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+			// read previous file content
+			fread((void *)((char *)old_file), oldFileSize, 1, fhandle);
+			memcpy((void *)((char *)new_header), (void *)old_file, oldFileSize); // copy old file
+			if ((fhandle = fopen(filename, "wbc")) == NULL)
 			{
-				// add column value to record buffer
-				if (col_entry->col_type == T_INT)
-				{
-
-					memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&int_size), 1);
-					recordBuffer[k];
-					k++; // take 1 byte
-
-					value_num = atoi(column_values[i]);
-					memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&value_num), sizeof(int));
-					recordBuffer[k];
-					k += sizeof(int);
-				}
-				else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
-				{
-					string_size = strlen(column_values[i]);
-					memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&string_size), 1);
-					recordBuffer[k];
-					k++;
-					memcpy((void *)((char *)recordBuffer + k), (void *)column_values[i], strlen(column_values[i]));
-					k += col_entry->col_len;
-				}
+				rc = FILE_OPEN_ERROR;
 			}
-			// memcpy() new row record into new_header tab file
-			// Use a char buffer array to write the record,
-			// then use memcpy to copy the record to the .tab file
-			// memcpy((void *)((char *)new_header + new_header->record_offset), (void *)((char *)*record_ptr), old_header->record_size);
-			memcpy((void *)((char *)new_header + new_header->record_offset + (old_header->record_size * old_header->num_records)), (void *)((char *)recordBuffer), old_header->record_size);
-			// fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * old_header->num_records), 1, fhandle);
-			fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * new_header->num_records) - 4, 1, fhandle);
-			fflush(fhandle);
-			fclose(fhandle);
+			else
+			{
+				new_header->num_records += 1;
+				new_header->file_size = oldFileSize + old_header->record_size;
+				new_header->tpd_ptr = 0;
+				recordBuffer = (char *)calloc(1, old_header->record_size);
+				memset((void *)recordBuffer, '\0', old_header->record_size);
+				int i = 0;
+				int k = 0;
+				int value_num = 0;
+				int int_size = sizeof(int);
+				int string_size = 0;
+				for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+				{
+					// add column value to record buffer
+					if (col_entry->col_type == T_INT)
+					{
+
+						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&int_size), 1);
+						recordBuffer[k];
+						k++; // take 1 byte
+
+						value_num = atoi(column_values[i]);
+						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&value_num), sizeof(int));
+						recordBuffer[k];
+						k += sizeof(int);
+					}
+					else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
+					{
+						string_size = strlen(column_values[i]);
+						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&string_size), 1);
+						recordBuffer[k];
+						k++;
+						memcpy((void *)((char *)recordBuffer + k), (void *)column_values[i], strlen(column_values[i]));
+						k += col_entry->col_len;
+					}
+				}
+				memcpy((void *)((char *)new_header + new_header->record_offset + (new_header->record_size * old_header->num_records)), (void *)((char *)recordBuffer), new_header->record_size);
+				fwrite(new_header, sizeof(table_file_header) + (old_header->record_size * new_header->num_records), 1, fhandle);
+			}
 		}
 	}
-
-	// memcpy contents of old tab_header_file
-	printf("\nDone Adding row to file...\n");
 	return rc;
 }
 

@@ -909,12 +909,6 @@ int sem_insert(token_list *t_list)
 	int rc = 0;
 	token_list *cur;
 	cur = t_list;
-	printf("\nIn sem_insert\n");
-	// Example: insert into students values(3,'John','Doe', 9)
-	// TODO:
-	// 1) Find the table to insert row (DONE?)
-	// 2) Modify the .tab file
-	printf("\nToken: %s\n", cur->tok_string);
 	table_file_header *old_header = (table_file_header *)calloc(1, sizeof(table_file_header));
 	FILE *fhandle = NULL;
 	char filename[MAX_IDENT_LEN + 4];
@@ -968,6 +962,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 	char *old_file;
 	oldFileSize = old_header->file_size;
 	old_file = (char *)calloc(1, oldFileSize);
+	bool colNull[MAX_NUM_COL];
 	// Example: insert into students values(3,'John','Doe', 9)
 	if (cur->tok_class != keyword)
 	{
@@ -993,22 +988,28 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 			do
 			{
 				// should be a value for column field
-				if ((cur->tok_value != INT_LITERAL) && (cur->tok_value != STRING_LITERAL))
+				if ((cur->tok_value != INT_LITERAL) && (cur->tok_value != STRING_LITERAL) && (cur->tok_value != K_NULL))
 				{
-					printf("\nERROR in FIRST IF\n");
 					rc = INVALID_INSERT_DEFINITION;
 					cur->tok_value = INVALID;
 				}
 				else
 				{
-					strcpy(column_values[j], cur->tok_string);
+					if (cur->tok_value == K_NULL)
+					{
+						colNull[j] = true;
+					}
+					else
+					{
+						strcpy(column_values[j], cur->tok_string);
+						colNull[j] = false;
+					}
 					cur = cur->next;
 					// token must either be comma or right paren
 					if (!rc)
 					{
 						if ((cur->tok_value != S_COMMA) && (cur->tok_value != S_RIGHT_PAREN))
 						{
-							printf("\nERROR in SECOND IF\n");
 							rc = INVALID_INSERT_DEFINITION;
 							cur->tok_value = INVALID;
 						}
@@ -1061,25 +1062,42 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 				for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
 				{
 					// add column value to record buffer
-					if (col_entry->col_type == T_INT)
+					if ((col_entry->col_type == T_INT) && !(colNull[i]))
 					{
 
 						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&int_size), 1);
-						recordBuffer[k];
+						// recordBuffer[k];
 						k++; // take 1 byte
 
 						value_num = atoi(column_values[i]);
 						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&value_num), sizeof(int));
-						recordBuffer[k];
+						// recordBuffer[k];
 						k += sizeof(int);
 					}
-					else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
+					else if (((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR)) && !(colNull[i]))
 					{
 						string_size = strlen(column_values[i]);
 						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&string_size), 1);
-						recordBuffer[k];
+						// recordBuffer[k];
 						k++;
 						memcpy((void *)((char *)recordBuffer + k), (void *)column_values[i], strlen(column_values[i]));
+						k += col_entry->col_len;
+					}
+					else if ((col_entry->col_type == T_INT) && (colNull[i]))
+					{
+						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&int_size), 1);
+						// recordBuffer[k];
+						k++; // take 1 byte
+						// recordBuffer[k];
+						k += sizeof(int);
+					}
+					else if (((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR)) && (colNull[i]))
+					{
+						string_size = 0; // null value length
+						memcpy((void *)((char *)recordBuffer + k), (void *)((char *)&string_size), 1);
+						// recordBuffer[k];
+						k++;
+						// recordBuffer[k];
 						k += col_entry->col_len;
 					}
 				}

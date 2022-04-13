@@ -1112,7 +1112,53 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 int sem_select(token_list *t_list)
 {
 	int rc = 0;
+	FILE *fhandle = NULL;
+	token_list *cur = t_list;
+	tpd_entry *tab_entry = NULL;
+	cd_entry *col_entry = NULL;
+	table_file_header *old_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	char filename[MAX_IDENT_LEN + 4];
+	char tablename[MAX_IDENT_LEN + 1];
+	char column_names[MAX_NUM_COL][1024];
+	char column_names_length[MAX_NUM_COL][1024];
+	int i;
 	printf("\nIn sem_select\n");
+	// READ the .tab file
+	// Format the data
+	// print the column header
+
+	// check correct select syntax
+	if ((cur->tok_value) != S_STAR)
+	{
+		rc = INVALID_SELECT_DEFINITION;
+		cur->tok_class = error;
+		cur->tok_value = INVALID;
+	}
+	// star symbol -> next token
+	cur = cur->next;
+	if ((cur->tok_value) != K_FROM)
+	{
+		rc = INVALID_SELECT_DEFINITION;
+		cur->tok_class = error;
+		cur->tok_value = INVALID;
+	}
+	// from keyword -> next token
+	cur = cur->next; // table name
+	strcpy(tablename, cur->tok_string);
+	strcpy(filename, strcat(cur->tok_string, ".tab"));
+	printf("\nFilename: %s\n", filename);
+
+	tab_entry = get_tpd_from_list(tablename);
+	for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+	{
+		// store column name and column length in two arrays to retrieve value later for format
+		strcpy(column_names[i], col_entry->col_name);
+		sprintf(column_names_length[i], "%d", col_entry->col_len);
+	}
+	// print column header
+	printf("");
+
+	//}
 	return rc;
 }
 

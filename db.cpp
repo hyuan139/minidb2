@@ -1116,11 +1116,13 @@ int sem_select(token_list *t_list)
 	token_list *cur = t_list;
 	tpd_entry *tab_entry = NULL;
 	cd_entry *col_entry = NULL;
-	table_file_header *old_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	table_file_header *old_header = NULL; // allocate later after getting file size using fstat
+	struct stat file_stat;
 	char filename[MAX_IDENT_LEN + 4];
 	char tablename[MAX_IDENT_LEN + 1];
 	char column_names[MAX_NUM_COL][1024];
 	char column_names_length[MAX_NUM_COL][1024];
+	char column_type[MAX_NUM_COL][1024];
 	int i;
 	printf("\nIn sem_select\n");
 	// READ the .tab file
@@ -1142,24 +1144,126 @@ int sem_select(token_list *t_list)
 		cur->tok_class = error;
 		cur->tok_value = INVALID;
 	}
-	// from keyword -> next token
-	cur = cur->next; // table name
-	strcpy(tablename, cur->tok_string);
-	strcpy(filename, strcat(cur->tok_string, ".tab"));
-	printf("\nFilename: %s\n", filename);
-
-	tab_entry = get_tpd_from_list(tablename);
-	for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+	if (!rc)
 	{
-		// store column name and column length in two arrays to retrieve value later for format
-		strcpy(column_names[i], col_entry->col_name);
-		sprintf(column_names_length[i], "%d", col_entry->col_len);
-	}
-	// print column header
-	printf("");
+		// from keyword -> next token
+		cur = cur->next; // table name
+		strcpy(tablename, cur->tok_string);
+		strcpy(filename, strcat(cur->tok_string, ".tab"));
 
-	//}
+		tab_entry = get_tpd_from_list(tablename);
+		for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+		{
+			// store column name and column length in two arrays to retrieve value later for format
+			strcpy(column_names[i], col_entry->col_name);
+			sprintf(column_names_length[i], "%d", col_entry->col_len);
+			sprintf(column_type[i], "%d", col_entry->col_type);
+		}
+		if ((fhandle = fopen(filename, "rbc")) == NULL)
+		{
+			rc = FILE_OPEN_ERROR;
+		}
+		else
+		{
+			fstat(fileno(fhandle), &file_stat);
+			old_header = (table_file_header *)calloc(1, file_stat.st_size);
+			fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+			// print column header
+			print_separator(old_header->record_size);
+			int j = 0;
+			int length = 0;
+			// TODO: Fix Formatting later
+			while (j < tab_entry->num_columns)
+			{
+				printf("%s", column_names[j]);
+				length = atoi(column_names_length[j]);
+				if (j == tab_entry->num_columns - 1)
+				{
+					printf("%*s", length - strlen(column_names[j]), "");
+				}
+				else
+				{
+					printf("%*s| ", length - strlen(column_names[j]), "");
+				}
+
+				j++;
+			}
+			printf("\n");
+			char *record = NULL;
+
+			// memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (0 * old_header->record_size)), old_header->record_size);
+			char *value;
+			j = 0;
+			int recordOffset = 0;
+			for (i = 0; i < old_header->num_records; i++)
+			{
+				record = (char *)calloc(1, old_header->record_size);
+				memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+				while (j < tab_entry->num_columns)
+				{
+					value = NULL;
+					if (atoi(column_type[j]) == T_INT)
+					{
+						// process as aint
+						value = (char *)calloc(1, sizeof(int));
+						recordOffset += 1; // account for length byte
+						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), sizeof(int));
+						recordOffset += sizeof(int);
+						char hexValue[16];
+						char temp[16];
+						memset(hexValue, '\0', 16);
+						strcat(hexValue, "0x");
+						sprintf(temp, "%x", (int)value[1]);
+						strcat(hexValue, temp);
+						sprintf(temp, "%x", (int)value[0]);
+						strcat(hexValue, temp);
+						long decimal = strtol(hexValue, NULL, 16);
+						printf("%ld", decimal);
+					}
+					else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+					{
+						// process as string
+						value = (char *)calloc(1, atoi(column_names_length[j]));
+						recordOffset += 1; // account for btye for length of the value
+						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_names_length[j]));
+						recordOffset += atoi(column_names_length[j]);
+						printf("%s", value);
+					}
+					// account for null
+					free(value);
+					j++;
+				}
+				free(record);
+				record = NULL;
+				recordOffset = 0;
+				j = 0;
+				printf("\n");
+			}
+
+			// printf("%s", record);
+			//  printf("");
+		}
+	}
+
 	return rc;
+}
+
+void print_separator(int n)
+{
+	int i = 0;
+	int record_size = n;
+	while (i < record_size)
+	{
+		if (i == record_size - 1)
+		{
+			printf("-\n");
+		}
+		else
+		{
+			printf("-");
+		}
+		i++;
+	}
 }
 
 int initialize_tpd_list()

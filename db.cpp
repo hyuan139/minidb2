@@ -1226,13 +1226,21 @@ int sem_select(token_list *t_list)
 						sprintf(temp, "%x", (int)value[0]);
 						strcat(hexValue, temp);
 						long decimal = strtol(hexValue, NULL, 16);
-						if (j == tab_entry->num_columns - 1)
+						if ((j == tab_entry->num_columns - 1) && (decimal != 0))
 						{
 							printf("%*ld", atoi(column_length[j]), decimal);
 						}
-						else
+						else if ((j == tab_entry->num_columns - 1) && (decimal == 0))
 						{
-							printf("%*ld| ", atoi(column_length[j]), decimal);
+							printf("%*s", atoi(column_length[j]), "-");
+						}
+						else if ((decimal != 0))
+						{
+							printf("%*ld | ", atoi(column_length[j]), decimal);
+						}
+						else if ((decimal == 0))
+						{
+							printf("%*s | ", atoi(column_length[j]), "-");
 						}
 					}
 					else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
@@ -1242,13 +1250,21 @@ int sem_select(token_list *t_list)
 						recordOffset += 1; // account for btye for length of the value
 						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_length[j]));
 						recordOffset += atoi(column_length[j]);
-						if (j == tab_entry->num_columns - 1)
+						if ((j == tab_entry->num_columns - 1) && (strlen(value) != 0))
 						{
 							printf("%-*s", atoi(column_length[j]), value);
 						}
-						else
+						else if ((j == tab_entry->num_columns - 1) && (strlen(value) == 0))
+						{
+							printf("%-*s", atoi(column_length[j]), "-");
+						}
+						else if ((strlen(value) != 0))
 						{
 							printf("%-*s | ", atoi(column_length[j]), value);
+						}
+						else if ((strlen(value) == 0))
+						{
+							printf("%-*s | ", atoi(column_length[j]), "-");
 						}
 					}
 					// account for null

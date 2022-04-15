@@ -1121,14 +1121,10 @@ int sem_select(token_list *t_list)
 	char filename[MAX_IDENT_LEN + 4];
 	char tablename[MAX_IDENT_LEN + 1];
 	char column_names[MAX_NUM_COL][1024];
-	char column_names_length[MAX_NUM_COL][1024];
+	char column_length[MAX_NUM_COL][1024];
 	char column_type[MAX_NUM_COL][1024];
 	int i;
 	printf("\nIn sem_select\n");
-	// READ the .tab file
-	// Format the data
-	// print the column header
-
 	// check correct select syntax
 	if ((cur->tok_value) != S_STAR)
 	{
@@ -1156,7 +1152,14 @@ int sem_select(token_list *t_list)
 		{
 			// store column name and column length in two arrays to retrieve value later for format
 			strcpy(column_names[i], col_entry->col_name);
-			sprintf(column_names_length[i], "%d", col_entry->col_len);
+			// if (col_entry->col_len <= 4)
+			//{
+			//	sprintf(column_length[i], "%d", col_entry->col_len + 10);
+			//	}
+			//	else
+			//	{
+			sprintf(column_length[i], "%d", col_entry->col_len);
+			//}
 			sprintf(column_type[i], "%d", col_entry->col_type);
 		}
 		if ((fhandle = fopen(filename, "rbc")) == NULL)
@@ -1168,30 +1171,35 @@ int sem_select(token_list *t_list)
 			fstat(fileno(fhandle), &file_stat);
 			old_header = (table_file_header *)calloc(1, file_stat.st_size);
 			fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
-			// print column header
+			// print table divider
 			print_separator(old_header->record_size);
 			int j = 0;
-			int length = 0;
+			int length = 0; // length for the table divider
 			// TODO: Fix Formatting later
 			while (j < tab_entry->num_columns)
 			{
-				printf("%s", column_names[j]);
-				length = atoi(column_names_length[j]);
-				if (j == tab_entry->num_columns - 1)
+				if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
 				{
-					printf("%*s", length - strlen(column_names[j]), "");
+					printf("%*s", atoi(column_length[j]), column_names[j]);
 				}
-				else
+				else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
 				{
-					printf("%*s| ", length - strlen(column_names[j]), "");
+					printf("%-*s", atoi(column_length[j]), column_names[j]);
 				}
-
+				else if ((atoi(column_type[j]) == T_INT))
+				{
+					printf("%*s | ", atoi(column_length[j]), column_names[j]);
+				}
+				else if (((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
+				{
+					printf("%-*s | ", atoi(column_length[j]), column_names[j]);
+				}
+				length += atoi(column_length[j]);
 				j++;
 			}
 			printf("\n");
+			print_separator(old_header->record_size);
 			char *record = NULL;
-
-			// memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (0 * old_header->record_size)), old_header->record_size);
 			char *value;
 			j = 0;
 			int recordOffset = 0;
@@ -1204,7 +1212,7 @@ int sem_select(token_list *t_list)
 					value = NULL;
 					if (atoi(column_type[j]) == T_INT)
 					{
-						// process as aint
+						// process as a int
 						value = (char *)calloc(1, sizeof(int));
 						recordOffset += 1; // account for length byte
 						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), sizeof(int));
@@ -1218,16 +1226,30 @@ int sem_select(token_list *t_list)
 						sprintf(temp, "%x", (int)value[0]);
 						strcat(hexValue, temp);
 						long decimal = strtol(hexValue, NULL, 16);
-						printf("%ld", decimal);
+						if (j == tab_entry->num_columns - 1)
+						{
+							printf("%*ld", atoi(column_length[j]), decimal);
+						}
+						else
+						{
+							printf("%*ld| ", atoi(column_length[j]), decimal);
+						}
 					}
 					else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 					{
 						// process as string
-						value = (char *)calloc(1, atoi(column_names_length[j]));
+						value = (char *)calloc(1, atoi(column_length[j]));
 						recordOffset += 1; // account for btye for length of the value
-						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_names_length[j]));
-						recordOffset += atoi(column_names_length[j]);
-						printf("%s", value);
+						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_length[j]));
+						recordOffset += atoi(column_length[j]);
+						if (j == tab_entry->num_columns - 1)
+						{
+							printf("%-*s", atoi(column_length[j]), value);
+						}
+						else
+						{
+							printf("%-*s | ", atoi(column_length[j]), value);
+						}
 					}
 					// account for null
 					free(value);
@@ -1239,9 +1261,8 @@ int sem_select(token_list *t_list)
 				j = 0;
 				printf("\n");
 			}
-
-			// printf("%s", record);
-			//  printf("");
+			// print end divider
+			print_separator(old_header->record_size);
 		}
 	}
 

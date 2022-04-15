@@ -85,33 +85,35 @@ typedef enum t_class
    a single valid token.  Use for semantic processing. */
 typedef enum t_value
 {
-	T_INT = 10,		   // 10 - new type should be added above this line
-	T_CHAR,			   // 11
-	T_VARCHAR,		   // 12
-	K_CREATE,		   // 13
-	K_TABLE,		   // 14
-	K_NOT,			   // 15
-	K_NULL,			   // 16
-	K_DROP,			   // 17
-	K_LIST,			   // 18
-	K_SCHEMA,		   // 19
-	K_FOR,			   // 20
-	K_TO,			   // 21
-	K_INSERT,		   // 22
-	K_INTO,			   // 23
-	K_VALUES,		   // 24
-	K_DELETE,		   // 25
-	K_FROM,			   // 26
-	K_WHERE,		   // 27
-	K_UPDATE,		   // 28
-	K_SET,			   // 29
-	K_SELECT,		   // 30
-	K_ORDER,		   // 31
-	K_BY,			   // 32
-	K_DESC,			   // 33
-	K_IS,			   // 34
-	K_AND,			   // 35
-	K_OR,			   // 36 - new keyword should be added below this line
+	T_INT = 10, // 10 - new type should be added above this line
+	T_CHAR,		// 11
+	T_VARCHAR,	// 12
+	K_CREATE,	// 13
+	K_TABLE,	// 14
+	K_NOT,		// 15
+	K_NULL,		// 16
+	K_DROP,		// 17
+	K_LIST,		// 18
+	K_SCHEMA,	// 19
+	K_FOR,		// 20
+	K_TO,		// 21
+	K_INSERT,	// 22
+	K_INTO,		// 23
+	K_VALUES,	// 24
+	K_DELETE,	// 25
+	K_FROM,		// 26
+	K_WHERE,	// 27
+	K_UPDATE,	// 28
+	K_SET,		// 29
+	K_SELECT,	// 30
+	K_ORDER,	// 31
+	K_BY,		// 32
+	K_DESC,		// 33
+	K_IS,		// 34
+	K_AND,		// 35
+	K_OR,		// 36 - new keyword should be added below this line
+	K_NATURAL,
+	K_JOIN,
 	F_SUM,			   // 37
 	F_AVG,			   // 38
 	F_COUNT,		   // 39 - new function name should be added below this line
@@ -138,7 +140,7 @@ char *keyword_table[] =
 	{
 		"int", "char", "varchar", "create", "table", "not", "null", "drop", "list", "schema",
 		"for", "to", "insert", "into", "values", "delete", "from", "where",
-		"update", "set", "select", "order", "by", "desc", "is", "and", "or",
+		"update", "set", "select", "order", "by", "desc", "is", "and", "or", "natural", "join",
 		"sum", "avg", "count"};
 
 /* This enum defines a set of possible statements */

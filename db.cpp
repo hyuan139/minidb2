@@ -1113,18 +1113,27 @@ int sem_select(token_list *t_list)
 {
 	int rc = 0;
 	FILE *fhandle = NULL;
+	FILE *fhandle2 = NULL;
 	token_list *cur = t_list;
 	tpd_entry *tab_entry = NULL;
+	tpd_entry *tab2_entry = NULL;
 	cd_entry *col_entry = NULL;
-	table_file_header *old_header = NULL; // allocate later after getting file size using fstat
+	cd_entry *col_entry2 = NULL;
+	table_file_header *old_header = NULL;
+	table_file_header *old_header2 = NULL;
 	struct stat file_stat;
+	struct stat file2_stat;
 	char filename[MAX_IDENT_LEN + 4];
+	char filename2[MAX_IDENT_LEN + 4];
 	char tablename[MAX_IDENT_LEN + 1];
+	char table2name[MAX_IDENT_LEN + 1];
 	char column_names[MAX_NUM_COL][1024];
 	char column_length[MAX_NUM_COL][1024];
 	char column_type[MAX_NUM_COL][1024];
+	char column_names2[MAX_NUM_COL][1024];
+	char column_length2[MAX_NUM_COL][1024];
+	char column_type2[MAX_NUM_COL][1024];
 	int i;
-	printf("\nIn sem_select\n");
 	// check correct select syntax
 	if ((cur->tok_value) != S_STAR)
 	{
@@ -1285,6 +1294,8 @@ int sem_select(token_list *t_list)
 		}
 		else
 		{
+			// store first table name
+			strcpy(tablename, cur->tok_string);
 			cur = cur->next;
 			if (((cur->tok_value) == K_NATURAL) && ((cur->next->tok_value) != K_JOIN))
 			{
@@ -1304,7 +1315,86 @@ int sem_select(token_list *t_list)
 					if (!rc)
 					{
 						cur = cur->next;
-						printf("\nToken : %s\n", cur->tok_string);
+						strcpy(table2name, cur->tok_string);
+						tab_entry = get_tpd_from_list(tablename);
+						tab2_entry = get_tpd_from_list(table2name);
+						// get column info for table 1
+						for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+						{
+							strcpy(column_names[i], col_entry->col_name);
+							sprintf(column_length[i], "%d", col_entry->col_len);
+							sprintf(column_type[i], "%d", col_entry->col_type);
+						}
+
+						// get column info for table 2
+						for (i = 0, col_entry2 = (cd_entry *)((char *)tab2_entry + tab2_entry->cd_offset); i < tab2_entry->num_columns; i++, col_entry2++)
+						{
+							strcpy(column_names2[i], col_entry2->col_name);
+							sprintf(column_length2[i], "%d", col_entry2->col_len);
+							sprintf(column_type2[i], "%d", col_entry2->col_type);
+						}
+
+						bool done = false;
+						int index1 = 0;
+						int index2 = 0;
+						int tab1_num_cols = tab_entry->num_columns;
+						int tab2_num_cols = tab2_entry->num_columns;
+						/*while (!done)
+						{
+							// travered all the columns
+							if ((index1 == tab1_num_cols) && (index2 == tab2_num_cols))
+							{
+								done = true;
+							}
+							else if (strcmp(column_names[index1], column_names2[index2]) == 0)
+							{
+								// common column
+								printf("%*s", atoi(column_length[index1]), column_names[index1]);
+								index1++;
+								index2++;
+							}
+							// print table1 column names first
+							else if (index1 < tab1_num_cols)
+							{
+								printf("%*s", atoi(column_length[index1]), column_names[index1]);
+								index1++;
+							}
+							else if (index2 < tab2_num_cols)
+							{
+								printf("%*s", atoi(column_length2[index2]), column_names2[index2]);
+								index2++;
+							}
+						}*/
+						// Read the files
+						strcpy(filename, strcat(tablename, ".tab"));
+						strcpy(filename2, strcat(table2name, ".tab"));
+						if (((fhandle = fopen(filename, "rbc")) == NULL))
+						{
+							rc = FILE_OPEN_ERROR;
+						}
+						else
+						{
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+							if (((fhandle2 = fopen(filename2, "rbc")) == NULL))
+							{
+								rc = FILE_OPEN_ERROR;
+							}
+							else
+							{
+								fstat(fileno(fhandle2), &file2_stat);
+								old_header2 = (table_file_header *)calloc(1, file2_stat.st_size);
+								fread((void *)((char *)old_header2), file2_stat.st_size, 1, fhandle2);
+								char *tab1_record = NULL;
+								char *tab2_record = NULL;
+								tab1_record = (char *)calloc(1, old_header->record_size);
+								memcpy((void *)((char *)tab1_record), (void *)((char *)old_header + old_header->record_offset), old_header->record_size);
+								tab2_record = (char *)calloc(1, old_header2->record_size);
+								memcpy((void *)((char *)tab2_record), (void *)((char *)old_header2 + old_header2->record_offset), old_header2->record_size);
+								printf("");
+							}
+						}
 					}
 				}
 			}

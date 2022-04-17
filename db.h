@@ -132,7 +132,7 @@ typedef enum t_value
 } token_value;
 
 /* This constants must be updated when add new keywords */
-#define TOTAL_KEYWORDS_PLUS_TYPE_NAMES 30
+#define TOTAL_KEYWORDS_PLUS_TYPE_NAMES 32
 
 /* New keyword must be added in the same position/order as the enum
    definition above, otherwise the lookup will be wrong */
@@ -193,6 +193,7 @@ int sem_insert(token_list *t_list);
 int sem_select(token_list *t_list);
 int add_row_to_file(table_file_header *old_head, token_list *t_list);
 void print_separator(int n);
+void print_separator2(tpd_entry *tabEntry);
 /*
 	Keep a global list of tpd - in real life, this will be stored
 	in shared memory.  Build a set of functions/methods around this.

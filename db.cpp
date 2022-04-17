@@ -1134,6 +1134,9 @@ int sem_select(token_list *t_list)
 	char column_length2[MAX_NUM_COL][1024];
 	char column_type2[MAX_NUM_COL][1024];
 	int i;
+	int k;
+	int m, n;
+
 	// check correct select syntax
 	if ((cur->tok_value) != S_STAR)
 	{
@@ -1205,7 +1208,7 @@ int sem_select(token_list *t_list)
 					{
 						printf("%-*s | ", atoi(column_length[j]), column_names[j]);
 					}
-					length += atoi(column_length[j]);
+					// length += atoi(column_length[j]);
 					j++;
 				}
 				printf("\n");
@@ -1243,7 +1246,7 @@ int sem_select(token_list *t_list)
 							}
 							else if ((j == tab_entry->num_columns - 1) && (decimal == 0))
 							{
-								printf("%*s", atoi(column_length[j]), "-");
+								printf("%*s", atoi(column_length[j]), " -");
 							}
 							else if ((decimal != 0))
 							{
@@ -1251,7 +1254,7 @@ int sem_select(token_list *t_list)
 							}
 							else if ((decimal == 0))
 							{
-								printf("%*s | ", atoi(column_length[j]), "-");
+								printf("%*s | ", atoi(column_length[j]), " -");
 							}
 						}
 						else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
@@ -1267,7 +1270,7 @@ int sem_select(token_list *t_list)
 							}
 							else if ((j == tab_entry->num_columns - 1) && (strlen(value) == 0))
 							{
-								printf("%-*s", atoi(column_length[j]), "-");
+								printf("%-*s", atoi(column_length[j]), " -");
 							}
 							else if ((strlen(value) != 0))
 							{
@@ -1275,7 +1278,7 @@ int sem_select(token_list *t_list)
 							}
 							else if ((strlen(value) == 0))
 							{
-								printf("%-*s | ", atoi(column_length[j]), "-");
+								printf("%-*s | ", atoi(column_length[j]), " -");
 							}
 						}
 						// account for null
@@ -1339,7 +1342,9 @@ int sem_select(token_list *t_list)
 						int index2 = 0;
 						int tab1_num_cols = tab_entry->num_columns;
 						int tab2_num_cols = tab2_entry->num_columns;
-						/*while (!done)
+						int table1_common_col = 0;
+						int table2_common_col = 0;
+						while (!done)
 						{
 							// travered all the columns
 							if ((index1 == tab1_num_cols) && (index2 == tab2_num_cols))
@@ -1349,22 +1354,45 @@ int sem_select(token_list *t_list)
 							else if (strcmp(column_names[index1], column_names2[index2]) == 0)
 							{
 								// common column
-								printf("%*s", atoi(column_length[index1]), column_names[index1]);
+								if (atoi(column_type[index1]) == T_INT)
+								{
+									printf("%*s", atoi(column_length[index1]), column_names[index1]);
+								}
+								else
+								{
+									printf("%-*s", atoi(column_length[index1]), column_names[index1]);
+								}
+								table1_common_col = index1;
+								table2_common_col = index2;
 								index1++;
 								index2++;
 							}
 							// print table1 column names first
 							else if (index1 < tab1_num_cols)
 							{
-								printf("%*s", atoi(column_length[index1]), column_names[index1]);
+								if (atoi(column_type[index1]) == T_INT)
+								{
+									printf("%*s", atoi(column_length[index1]), column_names[index1]);
+								}
+								else
+								{
+									printf("%-*s", atoi(column_length[index1]), column_names[index1]);
+								}
 								index1++;
 							}
 							else if (index2 < tab2_num_cols)
 							{
-								printf("%*s", atoi(column_length2[index2]), column_names2[index2]);
+								if (atoi(column_type2[index2]) == T_INT)
+								{
+									printf("%*s", atoi(column_length2[index2]), column_names2[index2]);
+								}
+								else
+								{
+									printf("%-*s", atoi(column_length2[index2]), column_names2[index2]);
+								}
 								index2++;
 							}
-						}*/
+						}
 						// Read the files
 						strcpy(filename, strcat(tablename, ".tab"));
 						strcpy(filename2, strcat(table2name, ".tab"));
@@ -1388,11 +1416,53 @@ int sem_select(token_list *t_list)
 								fread((void *)((char *)old_header2), file2_stat.st_size, 1, fhandle2);
 								char *tab1_record = NULL;
 								char *tab2_record = NULL;
-								tab1_record = (char *)calloc(1, old_header->record_size);
-								memcpy((void *)((char *)tab1_record), (void *)((char *)old_header + old_header->record_offset), old_header->record_size);
-								tab2_record = (char *)calloc(1, old_header2->record_size);
-								memcpy((void *)((char *)tab2_record), (void *)((char *)old_header2 + old_header2->record_offset), old_header2->record_size);
-								printf("");
+								char *tab1_value;
+								char *tab2_value;
+								bool n_join_done = false;
+								/*for (i = 0; i < old_header->num_records; i++)
+								{
+									if (n_join_done)
+									{
+										break;
+									}
+									tab1_record = (char *)calloc(1, old_header->record_size);
+									memcpy((void *)((char *)tab1_record), (void *)((char *)old_header + old_header->record_offset), old_header->record_size);
+									for (k = 0; k < old_header2->num_records; k++)
+									{
+										tab2_record = (char *)calloc(1, old_header2->record_size);
+										memcpy((void *)((char *)tab2_record), (void *)((char *)old_header2 + old_header2->record_offset), old_header2->record_size);
+										for (m = 0; m < tab_entry->num_columns; m++)
+										{
+											// check for matching column
+											if (m != table1_common_col)
+											{
+												continue;
+											}
+											else
+											{
+												// print column values
+												// common column
+												for (int n = 0; n < tab2_entry->num_columns; n++)
+												{
+													if (n == table2_common_col)
+													{
+														continue;
+													}
+													else
+													{
+														// print rest of column values from second table
+													}
+												}
+											}
+										}
+
+										free(tab2_record);
+										tab2_record = NULL;
+									}
+									free(tab1_record);
+									tab1_record = NULL;
+								}
+								printf("");*/
 							}
 						}
 					}

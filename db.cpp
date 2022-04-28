@@ -348,10 +348,22 @@ int do_semantic(token_list *tok_list)
 		cur_cmd = INSERT;
 		cur = cur->next->next;
 	}
-	else if (cur->tok_value == K_SELECT)
+	else if ((cur->tok_value == K_SELECT) && (cur->next->tok_value != NULL))
 	{
 		printf("SELECT statement\n");
 		cur_cmd = SELECT;
+		cur = cur->next;
+	}
+	else if ((cur->tok_value == K_DELETE) && ((cur->next != NULL) && (cur->next->tok_value == K_FROM)))
+	{
+		printf("DELETE statement\n");
+		cur_cmd = DELETE;
+		cur = cur->next->next;
+	}
+	else if ((cur->tok_value == K_UPDATE) && (cur->next != NULL))
+	{
+		printf("UPDATE statement\n");
+		cur_cmd = UPDATE;
 		cur = cur->next;
 	}
 	else
@@ -381,6 +393,12 @@ int do_semantic(token_list *tok_list)
 			break;
 		case SELECT:
 			rc = sem_select(cur);
+			break;
+		case DELETE:
+			rc = sem_delete(cur);
+			break;
+		case UPDATE:
+			rc = sem_update(cur);
 			break;
 		default:; /* no action */
 		}
@@ -1471,6 +1489,20 @@ int sem_select(token_list *t_list)
 		}
 	}
 
+	return rc;
+}
+
+int sem_delete(token_list *t_list)
+{
+	int rc = 0;
+	printf("PREPARING TO DELETE\n");
+	return rc;
+}
+
+int sem_update(token_list *t_list)
+{
+	int rc = 0;
+	printf("PREPARING TO UPDATE\n");
 	return rc;
 }
 

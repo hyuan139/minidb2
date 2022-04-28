@@ -191,9 +191,10 @@ int sem_list_tables();
 int sem_list_schema(token_list *t_list);
 int sem_insert(token_list *t_list);
 int sem_select(token_list *t_list);
+int sem_delete(token_list *t_list);
+int sem_update(token_list *t_list);
 int add_row_to_file(table_file_header *old_head, token_list *t_list);
 void print_separator(int n);
-void print_separator2(tpd_entry *tabEntry);
 /*
 	Keep a global list of tpd - in real life, this will be stored
 	in shared memory.  Build a set of functions/methods around this.

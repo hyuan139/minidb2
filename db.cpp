@@ -1496,6 +1496,49 @@ int sem_delete(token_list *t_list)
 {
 	int rc = 0;
 	printf("PREPARING TO DELETE\n");
+	token_list *cur;
+	cur = t_list;
+	table_file_header *old_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+	table_file_header *new_header = NULL;
+	FILE *fhandle = NULL;
+	char filename[MAX_IDENT_LEN + 4];
+	char tablename[MAX_IDENT_LEN + 1];
+	strcpy(tablename, cur->tok_string);
+	strcpy(filename, strcat(cur->tok_string, ".tab"));
+	if (cur->next->tok_value == K_WHERE)
+	{
+		printf("Delete with WHERE condition\n");
+	}
+	else
+	{
+		// Delete with no WHERE condition
+		printf("Delete with NO WHERE condition\n");
+		if ((fhandle = fopen(filename, "rbc")) == NULL)
+		{
+			printf("Error while opening %s file\n", filename);
+			rc = FILE_OPEN_ERROR;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			// Read the old header information from the tab file.
+			fread(old_header, sizeof(table_file_header), 1, fhandle);
+			fclose(fhandle);
+			old_header->file_size = old_header->file_size - (old_header->num_records * old_header->record_size);
+			old_header->num_records = 0;
+			if ((fhandle = fopen(filename, "wbc")) == NULL)
+			{
+				rc = FILE_OPEN_ERROR;
+			}
+			else
+			{
+				new_header = (table_file_header *)calloc(1, sizeof(table_file_header));
+				memcpy((void *)(new_header), (void *)(old_header), sizeof(table_file_header));
+				fwrite(new_header, sizeof(table_file_header), 1, fhandle);
+				printf("\nDelete Sucess!");
+			}
+		}
+	}
 	return rc;
 }
 

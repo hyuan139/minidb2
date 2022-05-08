@@ -1513,6 +1513,11 @@ int sem_delete(token_list *t_list)
 	int cond_val = NULL;
 	char cond_string[MAX_IDENT_LEN];
 	int records_to_delete = 0;
+	char *records = NULL;
+	int records_to_save_indexes[100];
+	int index_last_row_to_save;
+	int index = 0;
+	bool table_empty = false;
 	strcpy(tablename, cur->tok_string);
 	strcpy(filename, strcat(cur->tok_string, ".tab"));
 	if (cur->next->tok_value == K_WHERE)
@@ -1573,11 +1578,13 @@ int sem_delete(token_list *t_list)
 								printf("Column length: %s, ", column_length[i]);
 								printf("Column type: %s \n", column_type[i]);
 							}
+							// copy records to buffer
+							records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+							memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
 							char *record = NULL;
 							char *value;
 							int j = 0;
-							int recordOffset = 0;
-
+							int columnOffset = 0;
 							for (i = 0; i < old_header->num_records; i++)
 							{
 								record = (char *)calloc(1, old_header->record_size);
@@ -1586,7 +1593,7 @@ int sem_delete(token_list *t_list)
 								{
 									value = NULL;
 									// found matching column name
-									recordOffset += 1; // account for length byte
+									columnOffset += 1; // account for length byte
 									if (strcmp(colName, column_names[j]) == 0)
 									{
 										// printf("Seach on column name: %s\n", colName);
@@ -1594,8 +1601,8 @@ int sem_delete(token_list *t_list)
 										if (atoi(column_type[j]) == T_INT)
 										{
 											value = (char *)calloc(1, sizeof(int));
-											memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), sizeof(int));
-											recordOffset += sizeof(int);
+											memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											// columnOffset += sizeof(int);
 											char hexValue[16];
 											char temp[16];
 											memset(hexValue, '\0', 16);
@@ -1610,6 +1617,15 @@ int sem_delete(token_list *t_list)
 												// printf("Found value: %ld\n", decimal);
 												records_to_delete += 1;
 											}
+											else
+											{
+												records_to_save_indexes[index] = i;
+												index++;
+												if (i == old_header->num_records - 1)
+												{
+													index_last_row_to_save = i;
+												}
+											}
 										}
 									}
 									j++;
@@ -1617,7 +1633,7 @@ int sem_delete(token_list *t_list)
 								// reset
 								free(record);
 								record = NULL;
-								recordOffset = 0;
+								columnOffset = 0;
 								j = 0;
 							}
 							fclose(fhandle);
@@ -1630,6 +1646,82 @@ int sem_delete(token_list *t_list)
 						{
 							// Process to delete here
 							printf("Rows to delete: %d", records_to_delete);
+							int k = 0;
+							int newHeaderSize = old_header->file_size - (records_to_delete * old_header->record_size);
+							printf("\nNew header size: %d", newHeaderSize);
+							new_header = (table_file_header *)calloc(1, newHeaderSize);
+							memcpy((void *)((char *)new_header), (void *)old_header, old_header->record_offset);
+							new_header->num_records = old_header->num_records - records_to_delete;
+							new_header->file_size = newHeaderSize;
+							char *record = NULL;
+							char *value;
+							int columnOffset = 0;
+							int index2 = index - 1;
+							for (int j = 0; j < old_header->num_records; j++)
+							{
+								while ((k < tab_entry->num_columns) && !table_empty)
+								{
+									value = NULL;
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[k]) == 0)
+									{
+										if (atoi(column_type[k]) == T_INT)
+										{
+											value = (char *)calloc(1, sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset + (k * sizeof(int))), sizeof(int));
+											// columnOffset += sizeof(int);
+											char hexValue[16];
+											char temp[16];
+											memset(hexValue, '\0', 16);
+											strcat(hexValue, "0x");
+											sprintf(temp, "%x", (int)value[1]);
+											strcat(hexValue, temp);
+											sprintf(temp, "%x", (int)value[0]);
+											strcat(hexValue, temp);
+											long decimal = strtol(hexValue, NULL, 16);
+											if (cond_val == decimal)
+											{
+												// printf("\nFound value: %ld", decimal);
+												if (records_to_delete != 0)
+												{
+													if (new_header->num_records == 0)
+													{
+														table_empty = true;
+													}
+													else
+													{
+														// proceed delete as normal
+														memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (records_to_save_indexes[index2] * old_header->record_size)), old_header->record_size);
+														index2--;
+														records_to_delete--;
+													}
+												}
+											}
+											else if ((j < new_header->num_records) && !table_empty)
+											{
+												memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (j * old_header->record_size)), old_header->record_size);
+											}
+										}
+									}
+									k++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								k = 0;
+							}
+							if ((fhandle = fopen(filename, "wbc")) == NULL)
+							{
+								rc = FILE_OPEN_ERROR;
+							}
+							else
+							{
+								fwrite(new_header, newHeaderSize, 1, fhandle);
+								printf("\nDelete Sucess!");
+							}
+							free(records);
+							free(value);
 						}
 					}
 				}

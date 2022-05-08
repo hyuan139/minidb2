@@ -176,6 +176,8 @@ typedef enum error_return_codes
 	/* Must add all the possible errors from I/U/D + SELECT here */
 	INVALID_INSERT_DEFINITION, // -387
 	INVALID_SELECT_DEFINITION, // -386
+	INVALID_DELETE_DEFINITION, // -387
+	INVALID_UPDATE_DEFINITION, // -388
 	FILE_OPEN_ERROR = -299,	   // -299
 	DBFILE_CORRUPTION,		   // -298
 	MEMORY_ERROR			   // -297

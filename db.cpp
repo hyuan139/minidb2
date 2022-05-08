@@ -1507,7 +1507,60 @@ int sem_delete(token_list *t_list)
 	strcpy(filename, strcat(cur->tok_string, ".tab"));
 	if (cur->next->tok_value == K_WHERE)
 	{
+		cur = cur->next->next;
 		printf("Delete with WHERE condition\n");
+		if ((cur->tok_value == S_EQUAL) || (cur->tok_value == INT_LITERAL) || (cur->tok_value == STRING_LITERAL))
+		{
+			rc = INVALID_DELETE_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			char colName[MAX_IDENT_LEN];
+			strcpy(colName, cur->tok_string);
+			cur = cur->next;
+			if (cur->tok_value == S_EQUAL)
+			{
+				cur = cur->next;
+				if (cur->tok_value == INT_LITERAL)
+				{
+					printf("Is int literal\n");
+					printf("Value: %s", cur->tok_string);
+					if (cur->next->tok_value != EOC)
+					{
+						rc = INVALID_DELETE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// command looks good, proceed
+					}
+				}
+				else if (cur->tok_value == STRING_LITERAL)
+				{
+					printf("Is string literal\n");
+					printf("Value: %s", cur->tok_string);
+					if (cur->next->tok_value != EOC)
+					{
+						rc = INVALID_DELETE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// command looks good, proceed
+					}
+				}
+			}
+			else
+			{
+				rc = INVALID_DELETE_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+		}
 	}
 	else
 	{

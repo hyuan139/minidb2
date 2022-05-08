@@ -1601,7 +1601,8 @@ int sem_delete(token_list *t_list)
 										if (atoi(column_type[j]) == T_INT)
 										{
 											value = (char *)calloc(1, sizeof(int));
-											memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											// memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)record + columnOffset), sizeof(int));
 											// columnOffset += sizeof(int);
 											char hexValue[16];
 											char temp[16];
@@ -1627,6 +1628,10 @@ int sem_delete(token_list *t_list)
 												}
 											}
 										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[j]);
 									}
 									j++;
 								}
@@ -1668,8 +1673,9 @@ int sem_delete(token_list *t_list)
 										if (atoi(column_type[k]) == T_INT)
 										{
 											value = (char *)calloc(1, sizeof(int));
-											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset + (k * sizeof(int))), sizeof(int));
-											// columnOffset += sizeof(int);
+											// memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset + (k * sizeof(int))), sizeof(int));
+											//  columnOffset += sizeof(int);
+											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset), sizeof(int));
 											char hexValue[16];
 											char temp[16];
 											memset(hexValue, '\0', 16);
@@ -1702,6 +1708,10 @@ int sem_delete(token_list *t_list)
 												memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (j * old_header->record_size)), old_header->record_size);
 											}
 										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[k]);
 									}
 									k++;
 								}

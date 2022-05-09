@@ -2697,6 +2697,7 @@ int sem_delete(token_list *t_list)
 	else
 	{
 		// Delete with no WHERE condition
+		// TODO: Possible do error checking to make sure correct command
 		printf("Delete with NO WHERE condition\n");
 		if ((fhandle = fopen(filename, "rbc")) == NULL)
 		{
@@ -2732,6 +2733,107 @@ int sem_update(token_list *t_list)
 {
 	int rc = 0;
 	printf("PREPARING TO UPDATE\n");
+	token_list *cur;
+	cur = t_list;
+	table_file_header *old_header = NULL;
+	table_file_header *new_header = NULL;
+	FILE *fhandle = NULL;
+	tpd_entry *tab_entry = NULL;
+	cd_entry *col_entry = NULL;
+	char column_names[MAX_NUM_COL][MAX_IDENT_LEN];
+	char column_length[MAX_NUM_COL][MAX_IDENT_LEN];
+	char column_type[MAX_NUM_COL][MAX_IDENT_LEN];
+	struct stat file_stat;
+	char filename[MAX_IDENT_LEN + 4];
+	char tablename[MAX_IDENT_LEN + 1];
+	char column_to_update[MAX_IDENT_LEN];
+	int update_val_int = NULL;
+	char update_val_string[MAX_IDENT_LEN];
+	printf("Token: %s\n", cur->tok_string);
+	strcpy(tablename, cur->tok_string);
+	cur = cur->next;
+	printf("Token: %s\n", cur->tok_string);
+	if (cur->tok_value != K_SET)
+	{
+		rc = INVALID_UPDATE_DEFINITION;
+		cur->tok_class = error;
+		cur->tok_value = INVALID;
+	}
+	else
+	{
+		cur = cur->next;
+		printf("Token: %s\n", cur->tok_string);
+		strcpy(column_to_update, cur->tok_string);
+		cur = cur->next;
+		if (cur->tok_value != S_EQUAL)
+		{
+			rc = INVALID_UPDATE_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			printf("Token: %s\n", cur->tok_string);
+			cur = cur->next;
+			if (cur->tok_value == INT_LITERAL)
+			{
+				update_val_int = atoi(cur->tok_string);
+				printf("Value %d\n", update_val_int);
+				cur = cur->next;
+				if (cur->tok_value == K_WHERE)
+				{
+					printf("Token: %s\n", cur->tok_string);
+					cur = cur->next;
+					// UPDATE WHERE condition
+				}
+				else
+				{
+					if (cur->tok_value != EOC)
+					{
+						rc = INVALID_UPDATE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// UPDATE no WHERE condition
+						printf("Everything looks good. starting update w/o where\n");
+					}
+				}
+			}
+			else if (cur->tok_value == STRING_LITERAL)
+			{
+				strcpy(update_val_string, cur->tok_string);
+				printf("Value %s\n", update_val_string);
+				cur = cur->next;
+				if (cur->tok_value == K_WHERE)
+				{
+					printf("Token: %s\n", cur->tok_string);
+					cur = cur->next;
+				}
+				else
+				{
+					if (cur->tok_value != EOC)
+					{
+						rc = INVALID_UPDATE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						printf("Everything looks good. starting update w/o where\n");
+					}
+				}
+			}
+			else
+			{
+				rc = INVALID_UPDATE_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+		}
+	}
+
 	return rc;
 }
 

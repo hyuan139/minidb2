@@ -1916,6 +1916,776 @@ int sem_delete(token_list *t_list)
 					}
 				}
 			}
+			else if (cur->tok_value == S_LESS)
+			{
+				cur = cur->next;
+				if (cur->tok_value == INT_LITERAL)
+				{
+					printf("Is int literal\n");
+					printf("Value: %s", cur->tok_string);
+					cond_val = atoi(cur->tok_string);
+					if (cur->next->tok_value != EOC)
+					{
+						rc = INVALID_DELETE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// command looks good, proceed
+						if ((fhandle = fopen(filename, "rbc")) == NULL)
+						{
+							printf("Error while opening %s file\n", filename);
+							rc = FILE_OPEN_ERROR;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// Read the old header information from the tab file.
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread(old_header, file_stat.st_size, 1, fhandle);
+							// get table information
+							tab_entry = get_tpd_from_list(tablename);
+							for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+							{
+								strcpy(column_names[i], col_entry->col_name);
+								sprintf(column_length[i], "%d", col_entry->col_len);
+								sprintf(column_type[i], "%d", col_entry->col_type);
+							}
+							for (i = 0; i < tab_entry->num_columns; i++)
+							{
+								printf("\nColumn name: %s, ", column_names[i]);
+								printf("Column length: %s, ", column_length[i]);
+								printf("Column type: %s \n", column_type[i]);
+							}
+							// copy records to buffer
+							records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+							memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+							char *record = NULL;
+							char *value;
+							int j = 0;
+							int columnOffset = 0;
+							for (i = 0; i < old_header->num_records; i++)
+							{
+								record = (char *)calloc(1, old_header->record_size);
+								memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+								while (j < tab_entry->num_columns)
+								{
+									value = NULL;
+									// found matching column name
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[j]) == 0)
+									{
+										// printf("Seach on column name: %s\n", colName);
+										// printf("Found matching column name: %s\n", column_names[j]);
+										if (atoi(column_type[j]) == T_INT)
+										{
+											value = (char *)calloc(1, sizeof(int));
+											// memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)record + columnOffset), sizeof(int));
+											// columnOffset += sizeof(int);
+											char hexValue[16];
+											char temp[16];
+											memset(hexValue, '\0', 16);
+											strcat(hexValue, "0x");
+											sprintf(temp, "%x", (int)value[1]);
+											strcat(hexValue, temp);
+											sprintf(temp, "%x", (int)value[0]);
+											strcat(hexValue, temp);
+											long decimal = strtol(hexValue, NULL, 16);
+											if (decimal < cond_val)
+											{
+												records_to_delete += 1;
+											}
+											else
+											{
+												records_to_save_indexes[index] = i;
+												index++;
+												if (i == old_header->num_records - 1)
+												{
+													index_last_row_to_save = i;
+												}
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[j]);
+									}
+									j++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								j = 0;
+							}
+							fclose(fhandle);
+						}
+						if (records_to_delete == 0)
+						{
+							printf("WARNING! No row is found.\n");
+						}
+						else
+						{
+							// Process to delete here
+							printf("Rows to delete: %d", records_to_delete);
+							int k = 0;
+							int newHeaderSize = old_header->file_size - (records_to_delete * old_header->record_size);
+							printf("\nNew header size: %d", newHeaderSize);
+							new_header = (table_file_header *)calloc(1, newHeaderSize);
+							memcpy((void *)((char *)new_header), (void *)old_header, old_header->record_offset);
+							new_header->num_records = old_header->num_records - records_to_delete;
+							new_header->file_size = newHeaderSize;
+							char *record = NULL;
+							char *value;
+							int columnOffset = 0;
+							int index2 = index - 1;
+							for (int j = 0; j < old_header->num_records; j++)
+							{
+								while ((k < tab_entry->num_columns) && !table_empty)
+								{
+									value = NULL;
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[k]) == 0)
+									{
+										if (atoi(column_type[k]) == T_INT)
+										{
+											value = (char *)calloc(1, sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset), sizeof(int));
+											char hexValue[16];
+											char temp[16];
+											memset(hexValue, '\0', 16);
+											strcat(hexValue, "0x");
+											sprintf(temp, "%x", (int)value[1]);
+											strcat(hexValue, temp);
+											sprintf(temp, "%x", (int)value[0]);
+											strcat(hexValue, temp);
+											long decimal = strtol(hexValue, NULL, 16);
+											if (decimal < cond_val)
+											{
+												if (records_to_delete != 0)
+												{
+													if (new_header->num_records == 0)
+													{
+														table_empty = true;
+													}
+													else
+													{
+														if (index2 >= 0)
+														{
+															// proceed delete as normal
+															memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (records_to_save_indexes[index2] * old_header->record_size)), old_header->record_size);
+															index2--;
+															records_to_delete--;
+														}
+													}
+												}
+											}
+											else if ((j < new_header->num_records) && !table_empty)
+											{
+												memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (j * old_header->record_size)), old_header->record_size);
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[k]);
+									}
+									k++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								k = 0;
+							}
+							if ((fhandle = fopen(filename, "wbc")) == NULL)
+							{
+								rc = FILE_OPEN_ERROR;
+							}
+							else
+							{
+								fwrite(new_header, newHeaderSize, 1, fhandle);
+								printf("\nDelete Sucess!");
+							}
+							free(records);
+							free(value);
+						}
+					}
+				}
+				else if (cur->tok_value == STRING_LITERAL)
+				{
+					printf("Is string literal\n");
+					printf("Value: %s", cur->tok_string);
+					strcpy(cond_string, cur->tok_string);
+					if (cur->next->tok_value != EOC)
+					{
+						rc = INVALID_DELETE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// command looks good, proceed
+						if ((fhandle = fopen(filename, "rbc")) == NULL)
+						{
+							printf("Error while opening %s file\n", filename);
+							rc = FILE_OPEN_ERROR;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// Read the old header information from the tab file.
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread(old_header, file_stat.st_size, 1, fhandle);
+							// get table information
+							tab_entry = get_tpd_from_list(tablename);
+							for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+							{
+								strcpy(column_names[i], col_entry->col_name);
+								sprintf(column_length[i], "%d", col_entry->col_len);
+								sprintf(column_type[i], "%d", col_entry->col_type);
+							}
+							for (i = 0; i < tab_entry->num_columns; i++)
+							{
+								printf("\nColumn name: %s, ", column_names[i]);
+								printf("Column length: %s, ", column_length[i]);
+								printf("Column type: %s \n", column_type[i]);
+							}
+							// copy records to buffer
+							records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+							memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+							char *record = NULL;
+							char *value;
+							int j = 0;
+							int columnOffset = 0;
+							for (i = 0; i < old_header->num_records; i++)
+							{
+								// memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+								while (j < tab_entry->num_columns)
+								{
+									value = NULL;
+									// found matching column name
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[j]) == 0)
+									{
+										if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+										{
+											value = (char *)calloc(1, atoi(column_length[j]));
+											// memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+											if (strcmp(value, cond_string) < 0)
+											{
+												printf("Found value: %s\n", value);
+												records_to_delete += 1;
+											}
+											else
+											{
+												printf("\nNo match\n");
+												records_to_save_indexes[index] = i;
+												index++;
+												if (i == old_header->num_records - 1)
+												{
+													index_last_row_to_save = i;
+												}
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[j]);
+									}
+									j++;
+								}
+								// reset
+								columnOffset = 0;
+								j = 0;
+							}
+							fclose(fhandle);
+						}
+						if (records_to_delete == 0)
+						{
+							printf("WARNING! No row is found.\n");
+						}
+						else
+						{
+							// Process to delete here
+							printf("Rows to delete: %d", records_to_delete);
+							int k = 0;
+							int newHeaderSize = old_header->file_size - (records_to_delete * old_header->record_size);
+							printf("\nNew header size: %d", newHeaderSize);
+							new_header = (table_file_header *)calloc(1, newHeaderSize);
+							memcpy((void *)((char *)new_header), (void *)old_header, old_header->record_offset);
+							new_header->num_records = old_header->num_records - records_to_delete;
+							new_header->file_size = newHeaderSize;
+							char *record = NULL;
+							char *value;
+							int columnOffset = 0;
+							int index2 = index - 1;
+							for (int j = 0; j < old_header->num_records; j++)
+							{
+								while ((k < tab_entry->num_columns) && !table_empty)
+								{
+									value = NULL;
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[k]) == 0)
+									{
+										if ((atoi(column_type[k]) == T_CHAR) || (atoi(column_type[k]) == T_VARCHAR))
+										{
+											value = (char *)calloc(1, atoi(column_length[k]));
+											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset), atoi(column_length[k]));
+
+											if (strcmp(value, cond_string) < 0)
+											{
+												if (records_to_delete != 0)
+												{
+													if (new_header->num_records == 0)
+													{
+														table_empty = true;
+													}
+													else
+													{
+														// proceed delete as normal
+														if (j != old_header->num_records - 1)
+														{
+															if (index2 >= 0)
+															{
+																memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (records_to_save_indexes[index2] * old_header->record_size)), old_header->record_size);
+																index2--;
+																records_to_delete--;
+															}
+														}
+														else
+														{
+															// record to delete is already at last row
+															continue;
+														}
+													}
+												}
+											}
+											else if ((j < new_header->num_records) && !table_empty)
+											{
+												memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (j * old_header->record_size)), old_header->record_size);
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[k]);
+									}
+									k++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								k = 0;
+							}
+							if ((fhandle = fopen(filename, "wbc")) == NULL)
+							{
+								rc = FILE_OPEN_ERROR;
+							}
+							else
+							{
+								fwrite(new_header, newHeaderSize, 1, fhandle);
+								printf("\nDelete Sucess!");
+							}
+							free(records);
+							free(value);
+						}
+					}
+				}
+			}
+			else if (cur->tok_value == S_GREATER)
+			{
+				cur = cur->next;
+				if (cur->tok_value == INT_LITERAL)
+				{
+					printf("Is int literal\n");
+					printf("Value: %s", cur->tok_string);
+					cond_val = atoi(cur->tok_string);
+					if (cur->next->tok_value != EOC)
+					{
+						rc = INVALID_DELETE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// command looks good, proceed
+						if ((fhandle = fopen(filename, "rbc")) == NULL)
+						{
+							printf("Error while opening %s file\n", filename);
+							rc = FILE_OPEN_ERROR;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// Read the old header information from the tab file.
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread(old_header, file_stat.st_size, 1, fhandle);
+							// get table information
+							tab_entry = get_tpd_from_list(tablename);
+							for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+							{
+								strcpy(column_names[i], col_entry->col_name);
+								sprintf(column_length[i], "%d", col_entry->col_len);
+								sprintf(column_type[i], "%d", col_entry->col_type);
+							}
+							for (i = 0; i < tab_entry->num_columns; i++)
+							{
+								printf("\nColumn name: %s, ", column_names[i]);
+								printf("Column length: %s, ", column_length[i]);
+								printf("Column type: %s \n", column_type[i]);
+							}
+							// copy records to buffer
+							records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+							memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+							char *record = NULL;
+							char *value;
+							int j = 0;
+							int columnOffset = 0;
+							for (i = 0; i < old_header->num_records; i++)
+							{
+								record = (char *)calloc(1, old_header->record_size);
+								memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+								while (j < tab_entry->num_columns)
+								{
+									value = NULL;
+									// found matching column name
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[j]) == 0)
+									{
+										// printf("Seach on column name: %s\n", colName);
+										// printf("Found matching column name: %s\n", column_names[j]);
+										if (atoi(column_type[j]) == T_INT)
+										{
+											value = (char *)calloc(1, sizeof(int));
+											// memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)record + columnOffset), sizeof(int));
+											// columnOffset += sizeof(int);
+											char hexValue[16];
+											char temp[16];
+											memset(hexValue, '\0', 16);
+											strcat(hexValue, "0x");
+											sprintf(temp, "%x", (int)value[1]);
+											strcat(hexValue, temp);
+											sprintf(temp, "%x", (int)value[0]);
+											strcat(hexValue, temp);
+											long decimal = strtol(hexValue, NULL, 16);
+											if (decimal > cond_val)
+											{
+												// printf("Found value: %ld\n", decimal);
+												records_to_delete += 1;
+											}
+											else
+											{
+												records_to_save_indexes[index] = i;
+												index++;
+												if (i == old_header->num_records - 1)
+												{
+													index_last_row_to_save = i;
+												}
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[j]);
+									}
+									j++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								j = 0;
+							}
+							fclose(fhandle);
+						}
+						if (records_to_delete == 0)
+						{
+							printf("WARNING! No row is found.\n");
+						}
+						else
+						{
+							// Process to delete here
+							printf("Rows to delete: %d", records_to_delete);
+							int k = 0;
+							int newHeaderSize = old_header->file_size - (records_to_delete * old_header->record_size);
+							printf("\nNew header size: %d", newHeaderSize);
+							new_header = (table_file_header *)calloc(1, newHeaderSize);
+							memcpy((void *)((char *)new_header), (void *)old_header, old_header->record_offset);
+							new_header->num_records = old_header->num_records - records_to_delete;
+							new_header->file_size = newHeaderSize;
+							char *record = NULL;
+							char *value;
+							int columnOffset = 0;
+							int index2 = index - 1;
+							for (int j = 0; j < old_header->num_records; j++)
+							{
+								while ((k < tab_entry->num_columns) && !table_empty)
+								{
+									value = NULL;
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[k]) == 0)
+									{
+										if (atoi(column_type[k]) == T_INT)
+										{
+											value = (char *)calloc(1, sizeof(int));
+											// memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset + (k * sizeof(int))), sizeof(int));
+											//  columnOffset += sizeof(int);
+											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset), sizeof(int));
+											char hexValue[16];
+											char temp[16];
+											memset(hexValue, '\0', 16);
+											strcat(hexValue, "0x");
+											sprintf(temp, "%x", (int)value[1]);
+											strcat(hexValue, temp);
+											sprintf(temp, "%x", (int)value[0]);
+											strcat(hexValue, temp);
+											long decimal = strtol(hexValue, NULL, 16);
+											if (decimal > cond_val)
+											{
+												// printf("\nFound value: %ld", decimal);
+												if (records_to_delete != 0)
+												{
+													if (new_header->num_records == 0)
+													{
+														table_empty = true;
+													}
+													else
+													{
+														if (index2 >= 0)
+														{
+															// proceed delete as normal
+															memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (records_to_save_indexes[index2] * old_header->record_size)), old_header->record_size);
+															index2--;
+															records_to_delete--;
+														}
+													}
+												}
+											}
+											else if ((j < new_header->num_records) && !table_empty)
+											{
+												memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (j * old_header->record_size)), old_header->record_size);
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[k]);
+									}
+									k++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								k = 0;
+							}
+							if ((fhandle = fopen(filename, "wbc")) == NULL)
+							{
+								rc = FILE_OPEN_ERROR;
+							}
+							else
+							{
+								fwrite(new_header, newHeaderSize, 1, fhandle);
+								printf("\nDelete Sucess!");
+							}
+							free(records);
+							free(value);
+						}
+					}
+				}
+				else if (cur->tok_value == STRING_LITERAL)
+				{
+					printf("Is string literal\n");
+					printf("Value: %s", cur->tok_string);
+					strcpy(cond_string, cur->tok_string);
+					if (cur->next->tok_value != EOC)
+					{
+						rc = INVALID_DELETE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// command looks good, proceed
+						if ((fhandle = fopen(filename, "rbc")) == NULL)
+						{
+							printf("Error while opening %s file\n", filename);
+							rc = FILE_OPEN_ERROR;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// Read the old header information from the tab file.
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread(old_header, file_stat.st_size, 1, fhandle);
+							// get table information
+							tab_entry = get_tpd_from_list(tablename);
+							for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+							{
+								strcpy(column_names[i], col_entry->col_name);
+								sprintf(column_length[i], "%d", col_entry->col_len);
+								sprintf(column_type[i], "%d", col_entry->col_type);
+							}
+							for (i = 0; i < tab_entry->num_columns; i++)
+							{
+								printf("\nColumn name: %s, ", column_names[i]);
+								printf("Column length: %s, ", column_length[i]);
+								printf("Column type: %s \n", column_type[i]);
+							}
+							// copy records to buffer
+							records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+							memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+							char *record = NULL;
+							char *value;
+							int j = 0;
+							int columnOffset = 0;
+							for (i = 0; i < old_header->num_records; i++)
+							{
+								// memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+								while (j < tab_entry->num_columns)
+								{
+									value = NULL;
+									// found matching column name
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[j]) == 0)
+									{
+										if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+										{
+											value = (char *)calloc(1, atoi(column_length[j]));
+											// memcpy((void *)((char *)value), (void *)((char *)record + columnOffset + (j * sizeof(int))), sizeof(int));
+											memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+											if (strcmp(value, cond_string) > 0)
+											{
+												printf("Found value: %s\n", value);
+												records_to_delete += 1;
+											}
+											else
+											{
+												printf("\nNo match\n");
+												records_to_save_indexes[index] = i;
+												index++;
+												if (i == old_header->num_records - 1)
+												{
+													index_last_row_to_save = i;
+												}
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[j]);
+									}
+									j++;
+								}
+								// reset
+								columnOffset = 0;
+								j = 0;
+							}
+							fclose(fhandle);
+						}
+						if (records_to_delete == 0)
+						{
+							printf("WARNING! No row is found.\n");
+						}
+						else
+						{
+							// Process to delete here
+							printf("Rows to delete: %d", records_to_delete);
+							int k = 0;
+							int newHeaderSize = old_header->file_size - (records_to_delete * old_header->record_size);
+							printf("\nNew header size: %d", newHeaderSize);
+							new_header = (table_file_header *)calloc(1, newHeaderSize);
+							memcpy((void *)((char *)new_header), (void *)old_header, old_header->record_offset);
+							new_header->num_records = old_header->num_records - records_to_delete;
+							new_header->file_size = newHeaderSize;
+							char *record = NULL;
+							char *value;
+							int columnOffset = 0;
+							int index2 = index - 1;
+							for (int j = 0; j < old_header->num_records; j++)
+							{
+								while ((k < tab_entry->num_columns) && !table_empty)
+								{
+									value = NULL;
+									columnOffset += 1; // account for length byte
+									if (strcmp(colName, column_names[k]) == 0)
+									{
+										if ((atoi(column_type[k]) == T_CHAR) || (atoi(column_type[k]) == T_VARCHAR))
+										{
+											value = (char *)calloc(1, atoi(column_length[k]));
+											memcpy((void *)((char *)value), (void *)((char *)records + (j * old_header->record_size) + columnOffset), atoi(column_length[k]));
+
+											if (strcmp(value, cond_string) > 0)
+											{
+												if (records_to_delete != 0)
+												{
+													if (new_header->num_records == 0)
+													{
+														table_empty = true;
+													}
+													else
+													{
+														// proceed delete as normal
+														if (j != old_header->num_records - 1)
+														{
+															if (index2 >= 0)
+															{
+																memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (records_to_save_indexes[index2] * old_header->record_size)), old_header->record_size);
+																index2--;
+																records_to_delete--;
+															}
+														}
+														else
+														{
+															// record to delete is already at last row
+															continue;
+														}
+													}
+												}
+											}
+											else if ((j < new_header->num_records) && !table_empty)
+											{
+												memcpy((void *)((char *)new_header + old_header->record_offset + (j * old_header->record_size)), (void *)((char *)records + (j * old_header->record_size)), old_header->record_size);
+											}
+										}
+									}
+									else
+									{
+										columnOffset += atoi(column_length[k]);
+									}
+									k++;
+								}
+								// reset
+								free(record);
+								record = NULL;
+								columnOffset = 0;
+								k = 0;
+							}
+							if ((fhandle = fopen(filename, "wbc")) == NULL)
+							{
+								rc = FILE_OPEN_ERROR;
+							}
+							else
+							{
+								fwrite(new_header, newHeaderSize, 1, fhandle);
+								printf("\nDelete Sucess!");
+							}
+							free(records);
+							free(value);
+						}
+					}
+				}
+			}
 			else
 			{
 				rc = INVALID_DELETE_DEFINITION;

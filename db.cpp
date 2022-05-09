@@ -1511,7 +1511,7 @@ int sem_delete(token_list *t_list)
 	char tablename[MAX_IDENT_LEN + 1];
 	int i;
 	int cond_val = NULL;
-	char cond_string[MAX_IDENT_LEN];
+	char cond_string[MAX_IDENT_LEN]; // may need to adjust size
 	int records_to_delete = 0;
 	char *records = NULL;
 	int records_to_save_indexes[100];
@@ -2750,6 +2750,9 @@ int sem_update(token_list *t_list)
 	int update_val_int = NULL;
 	char update_val_string[MAX_IDENT_LEN];
 	int i;
+	char cond_column_name[MAX_IDENT_LEN];
+	int cond_val = NULL;
+	char cond_string[MAX_IDENT_LEN]; // may need to adjust size
 	char *records = NULL;
 	int records_to_update_indexes[100];
 	printf("Token: %s\n", cur->tok_string);
@@ -2789,6 +2792,72 @@ int sem_update(token_list *t_list)
 					printf("Token: %s\n", cur->tok_string);
 					cur = cur->next;
 					// UPDATE WHERE condition
+					strcpy(cond_column_name, cur->tok_string);
+					printf("Token: %s\n", cond_column_name);
+					cur = cur->next;
+					if (cur->tok_value == S_EQUAL)
+					{
+						printf("Token: %s\n", cur->tok_string);
+						cur = cur->next;
+						cond_val = atoi(cur->tok_string);
+						printf("Cond value: %d\n", cond_val);
+						cur = cur->next;
+						if (cur->tok_value != EOC)
+						{
+							rc = INVALID_UPDATE_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// proceed with update
+							printf("Everything looks good. Starting update with where condition =\n");
+						}
+					}
+					else if (cur->tok_value == S_LESS)
+					{
+						printf("Token: %s\n", cur->tok_string);
+						cur = cur->next;
+						cond_val = atoi(cur->tok_string);
+						printf("Cond value: %d\n", cond_val);
+						cur = cur->next;
+						if (cur->tok_value != EOC)
+						{
+							rc = INVALID_UPDATE_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// proceed with update
+							printf("Everything looks good. Starting update with where condition <\n");
+						}
+					}
+					else if (cur->tok_value == S_GREATER)
+					{
+						printf("Token: %s\n", cur->tok_string);
+						cur = cur->next;
+						cond_val = atoi(cur->tok_string);
+						printf("Cond value: %d\n", cond_val);
+						cur = cur->next;
+						if (cur->tok_value != EOC)
+						{
+							rc = INVALID_UPDATE_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							// proceed with update
+							printf("Everything looks good. Starting update with where condition >\n");
+						}
+					}
+					else
+					{
+						rc = INVALID_UPDATE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
 				}
 				else
 				{

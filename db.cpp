@@ -2754,7 +2754,10 @@ int sem_update(token_list *t_list)
 	int cond_val = NULL;
 	char cond_string[MAX_IDENT_LEN]; // may need to adjust size
 	char *records = NULL;
+	int records_to_update = 0;
 	int records_to_update_indexes[100];
+	int index2 = 0;
+	int update_column_offset = 0;
 	printf("Token: %s\n", cur->tok_string);
 	strcpy(tablename, cur->tok_string);
 	strcpy(filename, strcat(cur->tok_string, ".tab"));
@@ -2840,19 +2843,128 @@ int sem_update(token_list *t_list)
 										printf("\nColumn name: %s, ", column_names[i]);
 										printf("Column length: %s, ", column_length[i]);
 										printf("Column type: %s \n", column_type[i]);
-										// copy records to buffer
-										records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-										memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-										// First set of loops to check for # of rows to be updated
+									}
+									// copy records to buffer
+									records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+									memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+									char *value = NULL;
+									int j = 0;
+									int columnOffset = 0;
+									for (i = 0; i < old_header->num_records; i++)
+									{
+										while (j < tab_entry->num_columns)
+										{
+											// columnOffset += 1;
+											if (strcmp(column_to_update, column_names[j]) == 0)
+											{
+												update_column_offset = columnOffset + 1; // account for length byte
+												printf("Updated column offset: %d\n", update_column_offset);
+											}
+											if (strcmp(cond_column_name, column_names[j]) == 0)
+											{
+												columnOffset += 1;
+												if (atoi(column_type[j]) == T_INT)
+												{
+													value = (char *)calloc(1, sizeof(int));
+													memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+													columnOffset += sizeof(int);
+													char hexValue[16];
+													char temp[16];
+													memset(hexValue, '\0', 16);
+													strcat(hexValue, "0x");
+													sprintf(temp, "%x", (int)value[1]);
+													strcat(hexValue, temp);
+													sprintf(temp, "%x", (int)value[0]);
+													strcat(hexValue, temp);
+													long decimal = strtol(hexValue, NULL, 16);
+													if (cond_val == decimal)
+													{
+														records_to_update++;
+													}
+												}
+											}
+											else
+											{
+												columnOffset += (atoi(column_length[j]) + 1);
+											}
+											j++;
+										}
+										// reset
+										j = 0;
+										columnOffset = 0;
+										value = NULL;
+									}
+									if (records_to_update == 0)
+									{
+										printf("Warning! No matching rows found\n");
+									}
+									else
+									{
+										printf("Number of rows to be updated: %d\n", records_to_update);
+										new_header = (table_file_header *)calloc(1, file_stat.st_size);
+										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										index2 = 0; // reset
+										for (i = 0; i < old_header->num_records; i++)
+										{
+											while (j < tab_entry->num_columns)
+											{
+												columnOffset += 1;
+												if (strcmp(cond_column_name, column_names[j]) == 0)
+												{
+													if (atoi(column_type[j]) == T_INT)
+													{
+														value = (char *)calloc(1, sizeof(int));
+														memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+														char hexValue[16];
+														char temp[16];
+														memset(hexValue, '\0', 16);
+														strcat(hexValue, "0x");
+														sprintf(temp, "%x", (int)value[1]);
+														strcat(hexValue, temp);
+														sprintf(temp, "%x", (int)value[0]);
+														strcat(hexValue, temp);
+														long decimal = strtol(hexValue, NULL, 16);
+														if (cond_val == decimal)
+														{
+															// update row here
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+														}
+													}
+												}
+												else
+												{
+													columnOffset += atoi(column_length[j]);
+												}
+												j++;
+											}
+											// reset
+											j = 0;
+											columnOffset = 0;
+											value = NULL;
+										}
+									}
 
-										// if rows to be updated is 0, show warning, 0 row founds
-										// else update the rows
+									if ((fhandle = fopen(filename, "wbc")) == NULL)
+									{
+										rc = FILE_OPEN_ERROR;
+									}
+									else
+									{
+										// write file
+										fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+										printf("Update success!\n");
+										free(old_header);
+										free(new_header);
 									}
 								}
 							}
 							else if (cur->tok_value == STRING_LITERAL)
 							{
 								printf("string literal\n");
+							}
+							else if (cur->tok_value == K_NULL)
+							{
+								printf("Condition is NULL\n");
 							}
 							else
 							{

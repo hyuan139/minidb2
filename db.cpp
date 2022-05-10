@@ -2801,8 +2801,7 @@ int sem_update(token_list *t_list)
 						cur = cur->next;
 						cond_val = atoi(cur->tok_string);
 						printf("Cond value: %d\n", cond_val);
-						cur = cur->next;
-						if (cur->tok_value != EOC)
+						if (cur->next->tok_value != EOC)
 						{
 							rc = INVALID_UPDATE_DEFINITION;
 							cur->tok_class = error;
@@ -2812,6 +2811,55 @@ int sem_update(token_list *t_list)
 						{
 							// proceed with update
 							printf("Everything looks good. Starting update with where condition =\n");
+							if (cur->tok_value == INT_LITERAL)
+							{
+								printf("int literal\n");
+								// command looks good, proceed
+								if ((fhandle = fopen(filename, "rbc")) == NULL)
+								{
+									printf("Error while opening %s file\n", filename);
+									rc = FILE_OPEN_ERROR;
+									cur->tok_value = INVALID;
+								}
+								else
+								{
+									// Read the old header information from the tab file.
+									fstat(fileno(fhandle), &file_stat);
+									old_header = (table_file_header *)calloc(1, file_stat.st_size);
+									fread(old_header, file_stat.st_size, 1, fhandle);
+									// get table information
+									tab_entry = get_tpd_from_list(tablename);
+									for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+									{
+										strcpy(column_names[i], col_entry->col_name);
+										sprintf(column_length[i], "%d", col_entry->col_len);
+										sprintf(column_type[i], "%d", col_entry->col_type);
+									}
+									for (i = 0; i < tab_entry->num_columns; i++)
+									{
+										printf("\nColumn name: %s, ", column_names[i]);
+										printf("Column length: %s, ", column_length[i]);
+										printf("Column type: %s \n", column_type[i]);
+										// copy records to buffer
+										records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+										memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+										// First set of loops to check for # of rows to be updated
+
+										// if rows to be updated is 0, show warning, 0 row founds
+										// else update the rows
+									}
+								}
+							}
+							else if (cur->tok_value == STRING_LITERAL)
+							{
+								printf("string literal\n");
+							}
+							else
+							{
+								rc = INVALID_UPDATE_DEFINITION;
+								cur->tok_class = error;
+								cur->tok_value = INVALID;
+							}
 						}
 					}
 					else if (cur->tok_value == S_LESS)
@@ -2820,8 +2868,7 @@ int sem_update(token_list *t_list)
 						cur = cur->next;
 						cond_val = atoi(cur->tok_string);
 						printf("Cond value: %d\n", cond_val);
-						cur = cur->next;
-						if (cur->tok_value != EOC)
+						if (cur->next->tok_value != EOC)
 						{
 							rc = INVALID_UPDATE_DEFINITION;
 							cur->tok_class = error;
@@ -2831,6 +2878,20 @@ int sem_update(token_list *t_list)
 						{
 							// proceed with update
 							printf("Everything looks good. Starting update with where condition <\n");
+							if (cur->tok_value == INT_LITERAL)
+							{
+								printf("int literal\n");
+							}
+							else if (cur->tok_value == STRING_LITERAL)
+							{
+								printf("string literal\n");
+							}
+							else
+							{
+								rc = INVALID_UPDATE_DEFINITION;
+								cur->tok_class = error;
+								cur->tok_value = INVALID;
+							}
 						}
 					}
 					else if (cur->tok_value == S_GREATER)
@@ -2839,8 +2900,7 @@ int sem_update(token_list *t_list)
 						cur = cur->next;
 						cond_val = atoi(cur->tok_string);
 						printf("Cond value: %d\n", cond_val);
-						cur = cur->next;
-						if (cur->tok_value != EOC)
+						if (cur->next->tok_value != EOC)
 						{
 							rc = INVALID_UPDATE_DEFINITION;
 							cur->tok_class = error;
@@ -2850,6 +2910,20 @@ int sem_update(token_list *t_list)
 						{
 							// proceed with update
 							printf("Everything looks good. Starting update with where condition >\n");
+							if (cur->tok_value == INT_LITERAL)
+							{
+								printf("int literal\n");
+							}
+							else if (cur->tok_value == STRING_LITERAL)
+							{
+								printf("string literal\n");
+							}
+							else
+							{
+								rc = INVALID_UPDATE_DEFINITION;
+								cur->tok_class = error;
+								cur->tok_value = INVALID;
+							}
 						}
 					}
 					else

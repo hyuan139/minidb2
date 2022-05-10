@@ -2802,8 +2802,6 @@ int sem_update(token_list *t_list)
 					{
 						printf("Token: %s\n", cur->tok_string);
 						cur = cur->next;
-						cond_val = atoi(cur->tok_string);
-						printf("Cond value: %d\n", cond_val);
 						if (cur->next->tok_value != EOC)
 						{
 							rc = INVALID_UPDATE_DEFINITION;
@@ -2815,6 +2813,8 @@ int sem_update(token_list *t_list)
 							// proceed with update where column = value
 							if (cur->tok_value == INT_LITERAL)
 							{
+								cond_val = atoi(cur->tok_string);
+								printf("Cond value: %d\n", cond_val);
 								// command looks good, proceed
 								if ((fhandle = fopen(filename, "rbc")) == NULL)
 								{
@@ -2950,6 +2950,8 @@ int sem_update(token_list *t_list)
 							else if (cur->tok_value == STRING_LITERAL)
 							{
 								printf("string literal\n");
+								strcpy(cond_string, cur->tok_string);
+								printf("Cond value: %s", cond_string);
 							}
 							else if (cur->tok_value == K_NULL)
 							{
@@ -2967,8 +2969,6 @@ int sem_update(token_list *t_list)
 					{
 						printf("Token: %s\n", cur->tok_string);
 						cur = cur->next;
-						cond_val = atoi(cur->tok_string);
-						printf("Cond value: %d\n", cond_val);
 						if (cur->next->tok_value != EOC)
 						{
 							rc = INVALID_UPDATE_DEFINITION;
@@ -2980,6 +2980,8 @@ int sem_update(token_list *t_list)
 							// proceed with update where column < value
 							if (cur->tok_value == INT_LITERAL)
 							{
+								cond_val = atoi(cur->tok_string);
+								printf("Cond value: %d\n", cond_val);
 								if ((fhandle = fopen(filename, "rbc")) == NULL)
 								{
 									printf("Error while opening %s file\n", filename);
@@ -3115,6 +3117,8 @@ int sem_update(token_list *t_list)
 							else if (cur->tok_value == STRING_LITERAL)
 							{
 								printf("string literal\n");
+								strcpy(cond_string, cur->tok_string);
+								printf("Cond value: %s", cond_string);
 							}
 							else
 							{
@@ -3128,8 +3132,6 @@ int sem_update(token_list *t_list)
 					{
 						printf("Token: %s\n", cur->tok_string);
 						cur = cur->next;
-						cond_val = atoi(cur->tok_string);
-						printf("Cond value: %d\n", cond_val);
 						if (cur->next->tok_value != EOC)
 						{
 							rc = INVALID_UPDATE_DEFINITION;
@@ -3141,6 +3143,8 @@ int sem_update(token_list *t_list)
 							// proceed with update where column > value
 							if (cur->tok_value == INT_LITERAL)
 							{
+								cond_val = atoi(cur->tok_string);
+								printf("Cond value: %d\n", cond_val);
 								if ((fhandle = fopen(filename, "rbc")) == NULL)
 								{
 									printf("Error while opening %s file\n", filename);
@@ -3275,6 +3279,8 @@ int sem_update(token_list *t_list)
 							else if (cur->tok_value == STRING_LITERAL)
 							{
 								printf("string literal\n");
+								strcpy(cond_string, cur->tok_string);
+								printf("Cond value: %s", cond_string);
 							}
 							else
 							{
@@ -3480,11 +3486,11 @@ void print_separator(int n)
 	{
 		if (i == record_size - 1)
 		{
-			printf("-\n");
+			printf("=\n");
 		}
 		else
 		{
-			printf("-");
+			printf("=");
 		}
 		i++;
 	}

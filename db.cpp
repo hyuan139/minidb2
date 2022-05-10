@@ -4350,7 +4350,6 @@ int sem_update(token_list *t_list)
 									}
 									else
 									{
-										printf("Ready to update new column\n");
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
 										for (i = 0; i < old_header->num_records; i++)

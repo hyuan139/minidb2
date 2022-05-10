@@ -3731,6 +3731,7 @@ int sem_update(token_list *t_list)
 			}
 			else if (cur->tok_value == STRING_LITERAL)
 			{
+				printf("string literal\n");
 				strcpy(update_val_string, cur->tok_string);
 				printf("Value %s\n", update_val_string);
 				cur = cur->next;
@@ -3738,6 +3739,130 @@ int sem_update(token_list *t_list)
 				{
 					printf("Token: %s\n", cur->tok_string);
 					cur = cur->next;
+					// UPDATE WHERE condition
+					strcpy(cond_column_name, cur->tok_string);
+					printf("Token: %s\n", cond_column_name);
+					cur = cur->next;
+					if (cur->tok_value == S_EQUAL)
+					{
+						printf("Token: %s\n", cur->tok_string);
+						cur = cur->next;
+						if (cur->next->tok_value != EOC)
+						{
+							rc = INVALID_UPDATE_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							printf("Proceed with update where column = value\n");
+							printf("Token: %s\n", cur->tok_string);
+							if (cur->tok_value == INT_LITERAL)
+							{
+								printf("int literal\n");
+								cond_val = atoi(cur->tok_string);
+								printf("Cond value: %d\n", cond_val);
+							}
+							else if (cur->tok_value == STRING_LITERAL)
+							{
+								printf("string literal\n");
+								strcpy(cond_string, cur->tok_string);
+								printf("Cond value: %s\n", cond_string);
+							}
+							else if (cur->tok_value == K_NULL)
+							{
+								printf("Condition is NULL\n");
+							}
+							else
+							{
+								rc = INVALID_UPDATE_DEFINITION;
+								cur->tok_class = error;
+								cur->tok_value = INVALID;
+							}
+						}
+					}
+					else if (cur->tok_value == S_LESS)
+					{
+						printf("Token: %s\n", cur->tok_string);
+						cur = cur->next;
+						if (cur->next->tok_value != EOC)
+						{
+							rc = INVALID_UPDATE_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							printf("Proceed with update where column < value\n");
+							printf("Token: %s\n", cur->tok_string);
+							if (cur->tok_value == INT_LITERAL)
+							{
+								printf("int literal\n");
+								cond_val = atoi(cur->tok_string);
+								printf("Cond value: %d\n", cond_val);
+							}
+							else if (cur->tok_value == STRING_LITERAL)
+							{
+								printf("string literal\n");
+								strcpy(cond_string, cur->tok_string);
+								printf("Cond value: %s\n", cond_string);
+							}
+							else if (cur->tok_value == K_NULL)
+							{
+								printf("Condition is NULL\n");
+							}
+							else
+							{
+								rc = INVALID_UPDATE_DEFINITION;
+								cur->tok_class = error;
+								cur->tok_value = INVALID;
+							}
+						}
+					}
+					else if (cur->tok_value == S_GREATER)
+					{
+						printf("Token: %s\n", cur->tok_string);
+						cur = cur->next;
+						if (cur->next->tok_value != EOC)
+						{
+							rc = INVALID_UPDATE_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+						else
+						{
+							printf("Proceed with update where column > value\n");
+							printf("Token: %s\n", cur->tok_string);
+							if (cur->tok_value == INT_LITERAL)
+							{
+								printf("int literal\n");
+								cond_val = atoi(cur->tok_string);
+								printf("Cond value: %d\n", cond_val);
+							}
+							else if (cur->tok_value == STRING_LITERAL)
+							{
+								printf("string literal\n");
+								strcpy(cond_string, cur->tok_string);
+								printf("Cond value: %s\n", cond_string);
+							}
+							else if (cur->tok_value == K_NULL)
+							{
+								printf("Condition is NULL\n");
+							}
+							else
+							{
+								rc = INVALID_UPDATE_DEFINITION;
+								cur->tok_class = error;
+								cur->tok_value = INVALID;
+							}
+						}
+					}
+					else
+					{
+						rc = INVALID_UPDATE_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
 				}
 				else
 				{

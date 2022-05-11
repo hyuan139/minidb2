@@ -1154,7 +1154,10 @@ int sem_select(token_list *t_list)
 	int i;
 	int k;
 	int m, n;
-
+	int length_for_print = 0;
+	int length_arr_indexes[MAX_NUM_COL];
+	int num_col_index = 0;
+	int sum_table_length = 0;
 	// check correct select syntax
 	if ((cur->tok_value) != S_STAR)
 	{
@@ -1184,15 +1187,13 @@ int sem_select(token_list *t_list)
 			{
 				// store column name and column length in two arrays to retrieve value later for format
 				strcpy(column_names[i], col_entry->col_name);
-				// if (col_entry->col_len <= 4)
-				//{
-				//	sprintf(column_length[i], "%d", col_entry->col_len + 10);
-				//	}
-				//	else
-				//	{
 				sprintf(column_length[i], "%d", col_entry->col_len);
-				//}
 				sprintf(column_type[i], "%d", col_entry->col_type);
+				if (length_for_print < atoi(column_length[i]))
+				{
+					// set the leader length value
+					length_for_print = atoi(column_length[i]);
+				}
 			}
 			if ((fhandle = fopen(filename, "rbc")) == NULL)
 			{
@@ -1203,34 +1204,62 @@ int sem_select(token_list *t_list)
 				fstat(fileno(fhandle), &file_stat);
 				old_header = (table_file_header *)calloc(1, file_stat.st_size);
 				fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
-				// print table divider
-				print_separator(old_header->record_size);
 				int j = 0;
-				int length = 0; // length for the table divider
+				int length_for_small_column = 0;
+				if (length_for_print < 10)
+				{
+					length_for_small_column = length_for_print * 2;
+				}
+				else
+				{
+					length_for_small_column = length_for_print / 2; // length for the table divider for small column lengths
+				}
+
 				// TODO: Fix Formatting later
+				for (i = 0; i < tab_entry->num_columns; i++)
+				{
+					if (atoi(column_type[i]) == T_INT)
+					{
+						length_arr_indexes[i] = length_for_small_column;
+						sum_table_length += length_for_small_column + 2;
+					}
+					else if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+					{
+						if (atoi(column_length[i]) < 5)
+						{
+							length_arr_indexes[i] = length_for_small_column;
+							sum_table_length += length_for_small_column + 2;
+						}
+						else
+						{
+							length_arr_indexes[i] = atoi(column_length[i]);
+							sum_table_length += atoi(column_length[i]) + 2;
+						}
+					}
+				}
+				print_separator(sum_table_length);
 				while (j < tab_entry->num_columns)
 				{
 					if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
 					{
-						printf("%*s", atoi(column_length[j]), column_names[j]);
+						printf("%*s", length_arr_indexes[j], column_names[j]);
 					}
 					else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
 					{
-						printf("%-*s", atoi(column_length[j]), column_names[j]);
+						printf("%-*s", length_arr_indexes[j], column_names[j]);
 					}
 					else if ((atoi(column_type[j]) == T_INT))
 					{
-						printf("%*s | ", atoi(column_length[j]), column_names[j]);
+						printf("%*s | ", length_arr_indexes[j], column_names[j]);
 					}
 					else if (((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
 					{
-						printf("%-*s | ", atoi(column_length[j]), column_names[j]);
+						printf("%-*s | ", length_arr_indexes[j], column_names[j]);
 					}
-					// length += atoi(column_length[j]);
 					j++;
 				}
 				printf("\n");
-				print_separator(old_header->record_size);
+				print_separator(sum_table_length + 1);
 				char *record = NULL;
 				char *value;
 				j = 0;
@@ -1260,19 +1289,19 @@ int sem_select(token_list *t_list)
 							long decimal = strtol(hexValue, NULL, 16);
 							if ((j == tab_entry->num_columns - 1) && (decimal != 0))
 							{
-								printf("%*ld", atoi(column_length[j]), decimal);
+								printf("%*ld", length_arr_indexes[j], decimal);
 							}
 							else if ((j == tab_entry->num_columns - 1) && (decimal == 0))
 							{
-								printf("%*s", atoi(column_length[j]), " -");
+								printf("%*s", length_arr_indexes[j], " -");
 							}
 							else if ((decimal != 0))
 							{
-								printf("%*ld | ", atoi(column_length[j]), decimal);
+								printf("%*ld | ", length_arr_indexes[j], decimal);
 							}
 							else if ((decimal == 0))
 							{
-								printf("%*s | ", atoi(column_length[j]), " -");
+								printf("%*s | ", length_arr_indexes[j], " -");
 							}
 						}
 						else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
@@ -1284,19 +1313,19 @@ int sem_select(token_list *t_list)
 							recordOffset += atoi(column_length[j]);
 							if ((j == tab_entry->num_columns - 1) && (strlen(value) != 0))
 							{
-								printf("%-*s", atoi(column_length[j]), value);
+								printf("%-*s", length_arr_indexes[j], value);
 							}
 							else if ((j == tab_entry->num_columns - 1) && (strlen(value) == 0))
 							{
-								printf("%-*s", atoi(column_length[j]), " -");
+								printf("%-*s", length_arr_indexes[j], " -");
 							}
 							else if ((strlen(value) != 0))
 							{
-								printf("%-*s | ", atoi(column_length[j]), value);
+								printf("%-*s | ", length_arr_indexes[j], value);
 							}
 							else if ((strlen(value) == 0))
 							{
-								printf("%-*s | ", atoi(column_length[j]), " -");
+								printf("%-*s | ", length_arr_indexes[j], " -");
 							}
 						}
 						// account for null
@@ -1310,7 +1339,7 @@ int sem_select(token_list *t_list)
 					printf("\n");
 				}
 				// print end divider
-				print_separator(old_header->record_size);
+				print_separator(sum_table_length + 1);
 			}
 		}
 		else
@@ -4664,16 +4693,16 @@ int sem_update(token_list *t_list)
 void print_separator(int n)
 {
 	int i = 0;
-	int record_size = n;
-	while (i < record_size)
+	int length = n;
+	while (i < length)
 	{
-		if (i == record_size - 1)
+		if (i == length - 1)
 		{
-			printf("=\n");
+			printf("-\n");
 		}
 		else
 		{
-			printf("=");
+			printf("-");
 		}
 		i++;
 	}

@@ -1130,34 +1130,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 int sem_select(token_list *t_list)
 {
 	int rc = 0;
-	FILE *fhandle = NULL;
-	FILE *fhandle2 = NULL;
 	token_list *cur = t_list;
-	tpd_entry *tab_entry = NULL;
-	tpd_entry *tab2_entry = NULL;
-	cd_entry *col_entry = NULL;
-	cd_entry *col_entry2 = NULL;
-	table_file_header *old_header = NULL;
-	table_file_header *old_header2 = NULL;
-	struct stat file_stat;
-	struct stat file2_stat;
-	char filename[MAX_IDENT_LEN + 4];
-	char filename2[MAX_IDENT_LEN + 4];
-	char tablename[MAX_IDENT_LEN + 1];
-	char table2name[MAX_IDENT_LEN + 1];
-	char column_names[MAX_NUM_COL][1024];
-	char column_length[MAX_NUM_COL][1024];
-	char column_type[MAX_NUM_COL][1024];
-	char column_names2[MAX_NUM_COL][1024];
-	char column_length2[MAX_NUM_COL][1024];
-	char column_type2[MAX_NUM_COL][1024];
-	int i;
-	int k;
-	int m, n;
-	int length_for_print = 0;
-	int length_arr_indexes[MAX_NUM_COL];
-	int num_col_index = 0;
-	int sum_table_length = 0;
 	// check correct select syntax
 	if ((cur->tok_value) == S_STAR)
 	{
@@ -1211,6 +1184,7 @@ int sem_select_star(token_list *t_list)
 	strcpy(tablename, cur->tok_string);
 	strcpy(filename, strcat(cur->tok_string, ".tab"));
 	cur = cur->next;
+	// Regular SELECT statement with no options
 	if ((cur->tok_value == EOC))
 	{
 		tab_entry = get_tpd_from_list(tablename);

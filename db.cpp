@@ -1389,15 +1389,16 @@ int sem_select_project(token_list *t_list)
 	struct stat file_stat;
 	char filename[MAX_TOK_LEN + 4];
 	char tablename[MAX_TOK_LEN];
-	char column_names[MAX_NUM_COL][MAX_IDENT_LEN];
-	char column_length[MAX_NUM_COL][MAX_IDENT_LEN];
-	char column_type[MAX_NUM_COL][MAX_IDENT_LEN];
-	int i;
+	char column_names[MAX_NUM_COL][MAX_TOK_LEN];
+	char column_length[MAX_NUM_COL][MAX_TOK_LEN];
+	char column_type[MAX_NUM_COL][MAX_TOK_LEN];
+	int i = 0;
 	int length_for_print = 0;
 	int length_arr_indexes[MAX_NUM_COL];
 	int num_col_index = 0;
 	int sum_table_length = 0;
-
+	bool get_projected_columns_done = false;
+	char projected_columnNames[MAX_NUM_COL][MAX_TOK_LEN];
 	if ((cur->tok_value == STRING_LITERAL) || (cur->tok_value == INT_LITERAL))
 	{
 		rc = INVALID_SELECT_DEFINITION;
@@ -1406,7 +1407,71 @@ int sem_select_project(token_list *t_list)
 	}
 	else
 	{
-		printf("SELECT statement with projection (VALID)\n");
+		// make sure first token after select is not a comma
+		if (cur->tok_value == S_COMMA)
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			while (!get_projected_columns_done)
+			{
+				if ((cur->next->tok_value == S_COMMA) || (cur->next->tok_value == K_FROM))
+				{
+					if (cur->next->tok_value == K_FROM)
+					{
+						get_projected_columns_done = true;
+					}
+					strcpy(projected_columnNames[i], cur->tok_string);
+					cur = cur->next->next;
+					i++;
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_class = error;
+					cur->tok_value = INVALID;
+				}
+			}
+			// table name
+			strcpy(tablename, cur->tok_string);
+			strcpy(filename, strcat(tablename, ".tab"));
+			cur = cur->next;
+			if (cur->tok_value == EOC)
+			{
+				printf("SELECT statement with projection (VALID, no other options)\n");
+			}
+			else if ((cur->tok_value == K_NATURAL) && (cur->next->tok_value == K_JOIN))
+			{
+				cur = cur->next->next;
+				printf("Has natural join keyword\n");
+				printf("Token: %s\n", cur->tok_string);
+				// TODO: Further processing
+			}
+			else if (cur->tok_value == K_WHERE)
+			{
+				cur = cur->next;
+				printf("Statement has WHERE\n");
+				printf("Token: %s\n", cur->tok_string);
+				// TODO: Further processing
+			}
+			else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+			{
+				cur = cur->next->next;
+				printf("Statement has ORDER BY\n");
+				printf("Token: %s\n", cur->tok_string);
+				// TODO: Further processing
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+			// validate column exists
+		}
 	}
 	return rc;
 }

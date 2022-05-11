@@ -1381,7 +1381,33 @@ int sem_select_star(token_list *t_list)
 int sem_select_project(token_list *t_list)
 {
 	int rc = 0;
-	printf("SELECT statement with projection\n");
+	FILE *fhandle = NULL;
+	token_list *cur = t_list;
+	tpd_entry *tab_entry = NULL;
+	cd_entry *col_entry = NULL;
+	table_file_header *old_header = NULL;
+	struct stat file_stat;
+	char filename[MAX_TOK_LEN + 4];
+	char tablename[MAX_TOK_LEN];
+	char column_names[MAX_NUM_COL][MAX_IDENT_LEN];
+	char column_length[MAX_NUM_COL][MAX_IDENT_LEN];
+	char column_type[MAX_NUM_COL][MAX_IDENT_LEN];
+	int i;
+	int length_for_print = 0;
+	int length_arr_indexes[MAX_NUM_COL];
+	int num_col_index = 0;
+	int sum_table_length = 0;
+
+	if ((cur->tok_value == STRING_LITERAL) || (cur->tok_value == INT_LITERAL))
+	{
+		rc = INVALID_SELECT_DEFINITION;
+		cur->tok_class = error;
+		cur->tok_value = INVALID;
+	}
+	else
+	{
+		printf("SELECT statement with projection (VALID)\n");
+	}
 	return rc;
 }
 

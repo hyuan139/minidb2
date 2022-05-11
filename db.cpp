@@ -3800,6 +3800,8 @@ int sem_update(token_list *t_list)
 									{
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = strlen(update_val_string);
+										char *newColumnValueBuffer;
 										for (i = 0; i < old_header->num_records; i++)
 										{
 											while (j < tab_entry->num_columns)
@@ -3807,6 +3809,7 @@ int sem_update(token_list *t_list)
 												if (strcmp(cond_column_name, column_names[j]) == 0)
 												{
 													columnOffset += 1;
+													newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
 													if (atoi(column_type[j]) == T_INT)
 													{
 														value = (char *)calloc(1, sizeof(int));
@@ -3822,8 +3825,10 @@ int sem_update(token_list *t_list)
 														long decimal = strtol(hexValue, NULL, 16);
 														if (decimal == cond_val)
 														{
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
 															// update row here
-															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), atoi(column_length[index2]));
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), len_updated_value);
 														}
 													}
 												}
@@ -3926,6 +3931,8 @@ int sem_update(token_list *t_list)
 									{
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = strlen(update_val_string);
+										char *newColumnValueBuffer;
 										for (i = 0; i < old_header->num_records; i++)
 										{
 											while (j < tab_entry->num_columns)
@@ -3933,15 +3940,17 @@ int sem_update(token_list *t_list)
 												if (strcmp(cond_column_name, column_names[j]) == 0)
 												{
 													columnOffset += 1;
-
+													newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1); // include length byte
 													if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 													{
 														value = (char *)calloc(1, atoi(column_length[j]));
 														memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
 														if (strcmp(value, cond_string) == 0)
 														{
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
 															// update row here
-															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), atoi(column_length[index2]));
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), len_updated_value);
 														}
 													}
 												}
@@ -4076,6 +4085,8 @@ int sem_update(token_list *t_list)
 									{
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = strlen(update_val_string);
+										char *newColumnValueBuffer;
 										for (i = 0; i < old_header->num_records; i++)
 										{
 											while (j < tab_entry->num_columns)
@@ -4083,6 +4094,7 @@ int sem_update(token_list *t_list)
 												if (strcmp(cond_column_name, column_names[j]) == 0)
 												{
 													columnOffset += 1;
+													newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
 													if (atoi(column_type[j]) == T_INT)
 													{
 														value = (char *)calloc(1, sizeof(int));
@@ -4098,8 +4110,10 @@ int sem_update(token_list *t_list)
 														long decimal = strtol(hexValue, NULL, 16);
 														if (decimal < cond_val)
 														{
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
 															// update row here
-															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), atoi(column_length[index2]));
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), len_updated_value);
 														}
 													}
 												}
@@ -4202,6 +4216,8 @@ int sem_update(token_list *t_list)
 									{
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = strlen(update_val_string);
+										char *newColumnValueBuffer;
 										for (i = 0; i < old_header->num_records; i++)
 										{
 											while (j < tab_entry->num_columns)
@@ -4209,15 +4225,17 @@ int sem_update(token_list *t_list)
 												if (strcmp(cond_column_name, column_names[j]) == 0)
 												{
 													columnOffset += 1;
-
+													newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
 													if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 													{
 														value = (char *)calloc(1, atoi(column_length[j]));
 														memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
 														if (strcmp(value, cond_string) < 0)
 														{
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
 															// update row here
-															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), atoi(column_length[index2]));
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), len_updated_value);
 														}
 													}
 												}
@@ -4352,6 +4370,8 @@ int sem_update(token_list *t_list)
 									{
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = strlen(update_val_string);
+										char *newColumnValueBuffer;
 										for (i = 0; i < old_header->num_records; i++)
 										{
 											while (j < tab_entry->num_columns)
@@ -4359,6 +4379,7 @@ int sem_update(token_list *t_list)
 												if (strcmp(cond_column_name, column_names[j]) == 0)
 												{
 													columnOffset += 1;
+													newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
 													if (atoi(column_type[j]) == T_INT)
 													{
 														value = (char *)calloc(1, sizeof(int));
@@ -4374,8 +4395,10 @@ int sem_update(token_list *t_list)
 														long decimal = strtol(hexValue, NULL, 16);
 														if (decimal > cond_val)
 														{
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
 															// update row here
-															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), atoi(column_length[index2]));
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), len_updated_value);
 														}
 													}
 												}
@@ -4478,6 +4501,8 @@ int sem_update(token_list *t_list)
 									{
 										new_header = (table_file_header *)calloc(1, file_stat.st_size);
 										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = strlen(update_val_string);
+										char *newColumnValueBuffer;
 										for (i = 0; i < old_header->num_records; i++)
 										{
 											while (j < tab_entry->num_columns)
@@ -4485,15 +4510,17 @@ int sem_update(token_list *t_list)
 												if (strcmp(cond_column_name, column_names[j]) == 0)
 												{
 													columnOffset += 1;
-
+													newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
 													if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 													{
 														value = (char *)calloc(1, atoi(column_length[j]));
 														memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
 														if (strcmp(value, cond_string) > 0)
 														{
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
 															// update row here
-															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), atoi(column_length[index2]));
+															memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)update_val_string), len_updated_value);
 														}
 													}
 												}

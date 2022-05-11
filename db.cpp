@@ -1237,7 +1237,7 @@ int sem_select(token_list *t_list)
 						}
 					}
 				}
-				print_separator(sum_table_length);
+				print_separator(sum_table_length + 1);
 				while (j < tab_entry->num_columns)
 				{
 					if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
@@ -1246,7 +1246,7 @@ int sem_select(token_list *t_list)
 					}
 					else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
 					{
-						printf("%-*s", length_arr_indexes[j], column_names[j]);
+						printf("%-*s|", length_arr_indexes[j], column_names[j]);
 					}
 					else if ((atoi(column_type[j]) == T_INT))
 					{

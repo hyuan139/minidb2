@@ -114,6 +114,7 @@ typedef enum t_value
 	K_OR,		// 36 - new keyword should be added below this line
 	K_NATURAL,
 	K_JOIN,
+	K_AGGREGATE,
 	F_SUM,			   // 37
 	F_AVG,			   // 38
 	F_COUNT,		   // 39 - new function name should be added below this line
@@ -140,7 +141,7 @@ char *keyword_table[] =
 	{
 		"int", "char", "varchar", "create", "table", "not", "null", "drop", "list", "schema",
 		"for", "to", "insert", "into", "values", "delete", "from", "where",
-		"update", "set", "select", "order", "by", "desc", "is", "and", "or", "natural", "join",
+		"update", "set", "select", "order", "by", "desc", "is", "and", "or", "natural", "join", "aggregate",
 		"sum", "avg", "count"};
 
 /* This enum defines a set of possible statements */
@@ -196,6 +197,9 @@ int sem_select(token_list *t_list);
 int sem_delete(token_list *t_list);
 int sem_update(token_list *t_list);
 int add_row_to_file(table_file_header *old_head, token_list *t_list);
+int sem_select_star(token_list *t_list);
+int sem_select_project(token_list *t_list);
+int sem_select_aggregate(token_list *t_list);
 void print_separator(int n);
 
 /*

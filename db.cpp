@@ -1399,6 +1399,12 @@ int sem_select_project(token_list *t_list)
 	int sum_table_length = 0;
 	bool get_projected_columns_done = false;
 	char projected_columnNames[MAX_NUM_COL][MAX_TOK_LEN];
+	bool get_condition_columns_done = false;
+	char condition_columnNames[MAX_NUM_COL][MAX_TOK_LEN];
+	int condition_operator[MAX_NUM_COL]; // 0 -> equal, 1 -> less than, 2 -> greater than, 3 -> IS NULL, 4 IS NOT NULL
+	int boolean_operator[MAX_NUM_COL];	 // 0 -> AND, 1 -> OR
+	char condition_values_strings[MAX_NUM_COL][MAX_TOK_LEN];
+	char condition_values_ints[MAX_NUM_COL];
 	if ((cur->tok_value == STRING_LITERAL) || (cur->tok_value == INT_LITERAL))
 	{
 		rc = INVALID_SELECT_DEFINITION;
@@ -1442,6 +1448,7 @@ int sem_select_project(token_list *t_list)
 			if (cur->tok_value == EOC)
 			{
 				printf("SELECT statement with projection (VALID, no other options)\n");
+				// Regular select with projection on columns
 			}
 			else if ((cur->tok_value == K_NATURAL) && (cur->next->tok_value == K_JOIN))
 			{
@@ -1455,13 +1462,125 @@ int sem_select_project(token_list *t_list)
 				cur = cur->next;
 				printf("Statement has WHERE\n");
 				printf("Token: %s\n", cur->tok_string);
-				// TODO: Further processing
+				//  TODO: Further processing
+				i = 0; // reset
+				do
+				{
+					strcpy(condition_columnNames[i], cur->tok_string); // copy column name
+					cur = cur->next;
+					// check for relational operator
+					if (cur->tok_value == S_EQUAL)
+					{
+						condition_operator[i] = 0;
+						cur = cur->next;
+						if (cur->tok_value == INT_LITERAL)
+						{
+							condition_values_ints[i] = atoi(cur->tok_string);
+							cur = cur->next;
+						}
+						else if (cur->tok_value == STRING_LITERAL)
+						{
+							printf("Token: %s\n", cur->tok_string);
+							strcpy(condition_values_strings[i], cur->tok_string);
+							cur = cur->next;
+						}
+						else
+						{
+							rc = INVALID_SELECT_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+					else if (cur->tok_value == S_LESS)
+					{
+						condition_operator[i] = 1;
+						cur = cur->next;
+						if (cur->tok_value == INT_LITERAL)
+						{
+							condition_values_ints[i] = atoi(cur->tok_string);
+							cur = cur->next;
+						}
+						else if (cur->tok_value == STRING_LITERAL)
+						{
+							strcpy(condition_values_strings[i], cur->tok_string);
+							cur = cur->next;
+						}
+						else
+						{
+							rc = INVALID_SELECT_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+					else if (cur->tok_value == S_GREATER)
+					{
+						condition_operator[i] = 2;
+						cur = cur->next;
+						if (cur->tok_value == INT_LITERAL)
+						{
+							condition_values_ints[i] = atoi(cur->tok_string);
+							cur = cur->next;
+						}
+						else if (cur->tok_value == STRING_LITERAL)
+						{
+							strcpy(condition_values_strings[i], cur->tok_string);
+							cur = cur->next;
+						}
+						else
+						{
+							rc = INVALID_SELECT_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+					else if ((cur->tok_value == K_IS) && (cur->tok_value == K_NULL))
+					{
+						condition_operator[i] = 3;
+						cur = cur->next->next;
+					}
+					else if ((cur->tok_value == K_IS) && (cur->tok_value == K_NOT) && (cur->tok_value == K_NULL))
+					{
+						condition_operator[i] = 4;
+						cur = cur->next->next->next;
+					}
+					if ((cur->tok_value == K_AND) || (cur->tok_value == K_OR))
+					{
+						if (cur->tok_value == K_AND)
+						{
+							printf("Token: %s\n", cur->tok_string);
+							boolean_operator[i] = 0;
+							cur = cur->next;
+						}
+						else
+						{
+							printf("Token: %s\n", cur->tok_string);
+							boolean_operator[i] = 1;
+							cur = cur->next;
+						}
+					}
+					if (cur->tok_value == EOC)
+					{
+						get_condition_columns_done = true;
+					}
+					i++;
+
+				} while (!get_condition_columns_done);
 			}
 			else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 			{
 				cur = cur->next->next;
-				printf("Statement has ORDER BY\n");
-				printf("Token: %s\n", cur->tok_string);
+
+				if (cur->tok_value == K_DESC)
+				{
+					printf("Statement has ORDER BY %s\n", cur->tok_string);
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_class = error;
+					cur->tok_value = INVALID;
+				}
+
 				// TODO: Further processing
 			}
 			else

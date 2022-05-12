@@ -1147,9 +1147,15 @@ int sem_select(token_list *t_list)
 			rc = sem_select_star(cur);
 		}
 	}
-	else if ((cur->tok_value == K_AGGREGATE))
+	else if ((cur->tok_value == F_SUM) || (cur->tok_value == F_AVG) || (cur->tok_value == F_COUNT))
 	{
 		rc = sem_select_aggregate(cur);
+	}
+	else if (((cur->tok_value != F_SUM) || (cur->tok_value != F_AVG) || (cur->tok_value != F_COUNT)) && ((cur->next->tok_value == S_LEFT_PAREN) || (cur->next->tok_value == S_RIGHT_PAREN)))
+	{
+		rc = INVALID_SELECT_DEFINITION;
+		cur->tok_class = error;
+		cur->tok_value = INVALID;
 	}
 	else
 	{
@@ -1365,8 +1371,16 @@ int sem_select_star(token_list *t_list)
 	else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 	{
 		cur = cur->next->next;
-		printf("Statement has ORDER BY\n");
-		printf("Token: %s\n", cur->tok_string);
+		if (cur->tok_value == K_DESC)
+		{
+			printf("Statement has ORDER BY %s\n", cur->tok_string);
+		}
+		else
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
 		// TODO: Further processing
 	}
 	else
@@ -1597,8 +1611,371 @@ int sem_select_project(token_list *t_list)
 
 int sem_select_aggregate(token_list *t_list)
 {
+	// only one row returned?
 	int rc = 0;
+	FILE *fhandle = NULL;
+	token_list *cur = t_list;
+	tpd_entry *tab_entry = NULL;
+	cd_entry *col_entry = NULL;
+	table_file_header *old_header = NULL;
+	struct stat file_stat;
+	char filename[MAX_TOK_LEN + 4];
+	char tablename[MAX_TOK_LEN];
+	char column_names[MAX_NUM_COL][MAX_IDENT_LEN];
+	char column_length[MAX_NUM_COL][MAX_IDENT_LEN];
+	char column_type[MAX_NUM_COL][MAX_IDENT_LEN];
+	int i;
+	int length_for_print = 0;
+	int length_arr_indexes[MAX_NUM_COL];
+	int num_col_index = 0;
+	int sum_table_length = 0;
+	char aggregate_column_name[MAX_TOK_LEN];
+	bool valid_aggregate_column = false;
+	bool column_exists = false;
 	printf("SELECT statement with aggregate\n");
+	if (cur->tok_value == F_SUM)
+	{
+		// sum aggregate
+		cur = cur->next;
+		if (cur->tok_value != S_LEFT_PAREN)
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			cur = cur->next;
+			strcpy(aggregate_column_name, cur->tok_string);
+			cur = cur->next;
+			if (cur->tok_value != S_RIGHT_PAREN)
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+			else
+			{
+				cur = cur->next;
+				if (cur->tok_value != K_FROM)
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_class = error;
+					cur->tok_value = INVALID;
+				}
+				else
+				{
+					cur = cur->next;
+					strcpy(tablename, cur->tok_string);
+					tab_entry = get_tpd_from_list(tablename); // get pointer to table before concat
+					strcpy(filename, strcat(tablename, ".tab"));
+					cur = cur->next;
+					if (cur->tok_value == EOC)
+					{
+						printf("Valid sum aggregate command with no other options\n");
+						// read the table, check if column name exists && check if column is a valid integer column, if not error out
+						for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+						{
+							strcpy(column_names[i], col_entry->col_name);
+							sprintf(column_length[i], "%d", col_entry->col_len);
+							sprintf(column_type[i], "%d", col_entry->col_type);
+						}
+						for (i = 0; i < tab_entry->num_columns; i++)
+						{
+							if (strcmp(aggregate_column_name, column_names[i]) == 0)
+							{
+								column_exists = true;
+								if (atoi(column_type[i]) == T_INT)
+								{
+									valid_aggregate_column = true;
+									break;
+								}
+							}
+						}
+						if (column_exists)
+						{
+							printf("Column exists.\n");
+							if (valid_aggregate_column)
+							{
+								printf("Valid aggregate on column\n");
+							}
+							else
+							{
+								printf("NO Valid aggregate on column\n");
+							}
+						}
+						else
+						{
+							rc = COLUMN_NOT_EXIST;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+					else
+					{
+						if ((cur->tok_value == K_NATURAL) && (cur->next->tok_value == K_JOIN))
+						{
+							cur = cur->next->next;
+							printf("Valid sum aggregate with natural join and possible other options\n");
+						}
+						else if (cur->tok_value == K_WHERE)
+						{
+							cur = cur->next;
+							printf("Valid sum aggregate with where condition and possible other options\n");
+						}
+						else
+						{
+							rc = INVALID_SELECT_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+				}
+			}
+		}
+	}
+	else if (cur->tok_value == F_AVG)
+	{
+		// avg aggregtae
+		cur = cur->next;
+		if (cur->tok_value != S_LEFT_PAREN)
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			cur = cur->next;
+			strcpy(aggregate_column_name, cur->tok_string);
+			cur = cur->next;
+			if (cur->tok_value != S_RIGHT_PAREN)
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+			else
+			{
+				cur = cur->next;
+				if (cur->tok_value != K_FROM)
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_class = error;
+					cur->tok_value = INVALID;
+				}
+				else
+				{
+					cur = cur->next;
+					strcpy(tablename, cur->tok_string);
+					tab_entry = get_tpd_from_list(tablename); // get pointer to table before concat
+					strcpy(filename, strcat(tablename, ".tab"));
+					cur = cur->next;
+					if (cur->tok_value == EOC)
+					{
+						printf("Valid avg aggregate command with no other options\n");
+						// read the table, check if column name exists && check if column is a valid integer column, if not error out
+						for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+						{
+							strcpy(column_names[i], col_entry->col_name);
+							sprintf(column_length[i], "%d", col_entry->col_len);
+							sprintf(column_type[i], "%d", col_entry->col_type);
+						}
+						for (i = 0; i < tab_entry->num_columns; i++)
+						{
+							if (strcmp(aggregate_column_name, column_names[i]) == 0)
+							{
+								column_exists = true;
+								if (atoi(column_type[i]) == T_INT)
+								{
+									valid_aggregate_column = true;
+									break;
+								}
+							}
+						}
+						if (column_exists)
+						{
+							printf("Column exists.\n");
+							if (valid_aggregate_column)
+							{
+								printf("Valid aggregate on column\n");
+							}
+							else
+							{
+								printf("NO Valid aggregate on column\n");
+							}
+						}
+						else
+						{
+							rc = COLUMN_NOT_EXIST;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+					else
+					{
+						if ((cur->tok_value == K_NATURAL) && (cur->next->tok_value == K_JOIN))
+						{
+							cur = cur->next->next;
+							printf("Valid avg aggregate with natural join and possible other options\n");
+						}
+						else if (cur->tok_value == K_WHERE)
+						{
+							cur = cur->next;
+							printf("Valid avg aggregate with where condition and possible other options\n");
+						}
+						else
+						{
+							rc = INVALID_SELECT_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+				}
+			}
+		}
+	}
+	else if ((cur->tok_value == F_COUNT) && (cur->next->tok_value == S_LEFT_PAREN) && (cur->next->next->tok_value == S_STAR))
+	{
+		// count aggregate on star operator
+		cur = cur->next->next->next;
+		if (cur->tok_value != S_RIGHT_PAREN)
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			cur = cur->next;
+			if (cur->tok_value != K_FROM)
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+			else
+			{
+				cur = cur->next;
+				strcpy(tablename, cur->tok_string);
+				tab_entry = get_tpd_from_list(tablename); // get pointer to table before concat
+				strcpy(filename, strcat(tablename, ".tab"));
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					printf("Valid count(*) aggregate with no options\n");
+				}
+				else
+				{
+					if ((cur->tok_value == K_NATURAL) && (cur->next->tok_value == K_JOIN))
+					{
+						cur = cur->next->next;
+						printf("Valid count aggregate with natural join and possible other options\n");
+					}
+					else if (cur->tok_value == K_WHERE)
+					{
+						cur = cur->next;
+						printf("Valid count aggregate with where condition and possible other options\n");
+					}
+					else
+					{
+						rc = INVALID_SELECT_DEFINITION;
+						cur->tok_class = error;
+						cur->tok_value = INVALID;
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		// count aggregate on a specific column
+		cur = cur->next;
+		if (cur->tok_value != S_LEFT_PAREN)
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_class = error;
+			cur->tok_value = INVALID;
+		}
+		else
+		{
+			cur = cur->next;
+			strcpy(aggregate_column_name, cur->tok_string);
+			cur = cur->next;
+			if (cur->tok_value != S_RIGHT_PAREN)
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+			else
+			{
+				cur = cur->next;
+				if (cur->tok_value != K_FROM)
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_class = error;
+					cur->tok_value = INVALID;
+				}
+				else
+				{
+					cur = cur->next;
+					strcpy(tablename, cur->tok_string);
+					tab_entry = get_tpd_from_list(tablename); // get pointer to table before concat
+					strcpy(filename, strcat(tablename, ".tab"));
+					cur = cur->next;
+					if (cur->tok_value == EOC)
+					{
+						printf("Valid count aggregate command with no other options\n");
+						// read the table, check if column name exists && check if column is a valid integer column, if not error out
+						for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+						{
+							strcpy(column_names[i], col_entry->col_name);
+							sprintf(column_length[i], "%d", col_entry->col_len);
+							sprintf(column_type[i], "%d", col_entry->col_type);
+						}
+						for (i = 0; i < tab_entry->num_columns; i++)
+						{
+							if (strcmp(aggregate_column_name, column_names[i]) == 0)
+							{
+								column_exists = true;
+								break;
+							}
+						}
+						if (column_exists)
+						{
+							printf("Column exists.\n");
+						}
+						else
+						{
+							rc = COLUMN_NOT_EXIST;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+					else
+					{
+						if ((cur->tok_value == K_NATURAL) && (cur->next->tok_value == K_JOIN))
+						{
+							cur = cur->next->next;
+							printf("Valid count aggregate with natural join and possible other options\n");
+						}
+						else if (cur->tok_value == K_WHERE)
+						{
+							cur = cur->next;
+							printf("Valid count aggregate with where condition and possible other options\n");
+						}
+						else
+						{
+							rc = INVALID_SELECT_DEFINITION;
+							cur->tok_class = error;
+							cur->tok_value = INVALID;
+						}
+					}
+				}
+			}
+		}
+	}
 	return rc;
 }
 

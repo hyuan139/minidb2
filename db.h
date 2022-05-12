@@ -114,7 +114,6 @@ typedef enum t_value
 	K_OR,		// 36 - new keyword should be added below this line
 	K_NATURAL,
 	K_JOIN,
-	K_AGGREGATE,
 	F_SUM,			   // 37
 	F_AVG,			   // 38
 	F_COUNT,		   // 39 - new function name should be added below this line
@@ -141,7 +140,7 @@ char *keyword_table[] =
 	{
 		"int", "char", "varchar", "create", "table", "not", "null", "drop", "list", "schema",
 		"for", "to", "insert", "into", "values", "delete", "from", "where",
-		"update", "set", "select", "order", "by", "desc", "is", "and", "or", "natural", "join", "aggregate",
+		"update", "set", "select", "order", "by", "desc", "is", "and", "or", "natural", "join",
 		"sum", "avg", "count"};
 
 /* This enum defines a set of possible statements */
@@ -179,9 +178,10 @@ typedef enum error_return_codes
 	INVALID_SELECT_DEFINITION, // -386
 	INVALID_DELETE_DEFINITION, // -387
 	INVALID_UPDATE_DEFINITION, // -388
-	FILE_OPEN_ERROR = -299,	   // -299
-	DBFILE_CORRUPTION,		   // -298
-	MEMORY_ERROR			   // -297
+	COLUMN_NOT_INTEGER_TYPE,
+	FILE_OPEN_ERROR = -299, // -299
+	DBFILE_CORRUPTION,		// -298
+	MEMORY_ERROR			// -297
 } return_codes;
 
 /* Set of function prototypes */

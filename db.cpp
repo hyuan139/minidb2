@@ -1193,164 +1193,171 @@ int sem_select_star(token_list *t_list)
 	// Regular SELECT statement with no options
 	if ((cur->tok_value == EOC))
 	{
-		tab_entry = get_tpd_from_list(tablename);
-		for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+		if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
 		{
-			// store column name and column length in two arrays to retrieve value later for format
-			strcpy(column_names[i], col_entry->col_name);
-			sprintf(column_length[i], "%d", col_entry->col_len);
-			sprintf(column_type[i], "%d", col_entry->col_type);
-			if (length_for_print < atoi(column_length[i]))
-			{
-				// set the leader length value
-				length_for_print = atoi(column_length[i]);
-			}
-		}
-		if ((fhandle = fopen(filename, "rbc")) == NULL)
-		{
-			rc = FILE_OPEN_ERROR;
+			rc = TABLE_NOT_EXIST;
+			cur->tok_value = INVALID;
 		}
 		else
 		{
-			fstat(fileno(fhandle), &file_stat);
-			old_header = (table_file_header *)calloc(1, file_stat.st_size);
-			fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
-			int j = 0;
-			int length_for_small_column = 0;
-			if (length_for_print < 10)
+			for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
 			{
-				length_for_small_column = length_for_print * 2;
+				// store column name and column length in two arrays to retrieve value later for format
+				strcpy(column_names[i], col_entry->col_name);
+				sprintf(column_length[i], "%d", col_entry->col_len);
+				sprintf(column_type[i], "%d", col_entry->col_type);
+				if (length_for_print < atoi(column_length[i]))
+				{
+					// set the leader length value
+					length_for_print = atoi(column_length[i]);
+				}
+			}
+			if ((fhandle = fopen(filename, "rbc")) == NULL)
+			{
+				rc = FILE_OPEN_ERROR;
 			}
 			else
 			{
-				length_for_small_column = length_for_print / 2; // length for the table divider for small column lengths
-			}
-
-			// TODO: Fix Formatting later
-			for (i = 0; i < tab_entry->num_columns; i++)
-			{
-				if (atoi(column_type[i]) == T_INT)
+				fstat(fileno(fhandle), &file_stat);
+				old_header = (table_file_header *)calloc(1, file_stat.st_size);
+				fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+				int j = 0;
+				int length_for_small_column = 0;
+				if (length_for_print < 10)
 				{
-					length_arr_indexes[i] = length_for_small_column;
-					sum_table_length += length_for_small_column + 2;
+					length_for_small_column = length_for_print * 2;
 				}
-				else if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+				else
 				{
-					if (atoi(column_length[i]) < 5)
+					length_for_small_column = length_for_print / 2; // length for the table divider for small column lengths
+				}
+
+				// TODO: Fix Formatting later
+				for (i = 0; i < tab_entry->num_columns; i++)
+				{
+					if (atoi(column_type[i]) == T_INT)
 					{
 						length_arr_indexes[i] = length_for_small_column;
 						sum_table_length += length_for_small_column + 2;
 					}
-					else
+					else if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
 					{
-						length_arr_indexes[i] = atoi(column_length[i]);
-						sum_table_length += atoi(column_length[i]) + 2;
+						if (atoi(column_length[i]) < 5)
+						{
+							length_arr_indexes[i] = length_for_small_column;
+							sum_table_length += length_for_small_column + 2;
+						}
+						else
+						{
+							length_arr_indexes[i] = atoi(column_length[i]);
+							sum_table_length += atoi(column_length[i]) + 2;
+						}
 					}
 				}
-			}
-			print_separator(sum_table_length + 1);
-			while (j < tab_entry->num_columns)
-			{
-				if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
-				{
-					printf("%*s", length_arr_indexes[j], column_names[j]);
-				}
-				else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
-				{
-					printf("%-*s|", length_arr_indexes[j], column_names[j]);
-				}
-				else if ((atoi(column_type[j]) == T_INT))
-				{
-					printf("%*s | ", length_arr_indexes[j], column_names[j]);
-				}
-				else if (((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
-				{
-					printf("%-*s | ", length_arr_indexes[j], column_names[j]);
-				}
-				j++;
-			}
-			printf("\n");
-			print_separator(sum_table_length + 1);
-			char *record = NULL;
-			char *value;
-			j = 0;
-			int recordOffset = 0;
-			for (i = 0; i < old_header->num_records; i++)
-			{
-				record = (char *)calloc(1, old_header->record_size);
-				memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+				print_separator(sum_table_length + 1);
 				while (j < tab_entry->num_columns)
 				{
-					value = NULL;
-					if (atoi(column_type[j]) == T_INT)
+					if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
 					{
-						// process as a int
-						value = (char *)calloc(1, sizeof(int));
-						recordOffset += 1; // account for length byte
-						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), sizeof(int));
-						recordOffset += sizeof(int);
-						char hexValue[16];
-						char temp[16];
-						memset(hexValue, '\0', 16);
-						strcat(hexValue, "0x");
-						sprintf(temp, "%x", (int)value[1]);
-						strcat(hexValue, temp);
-						sprintf(temp, "%x", (int)value[0]);
-						strcat(hexValue, temp);
-						long decimal = strtol(hexValue, NULL, 16);
-						if ((j == tab_entry->num_columns - 1) && (decimal != 0))
-						{
-							printf("%*ld", length_arr_indexes[j], decimal);
-						}
-						else if ((j == tab_entry->num_columns - 1) && (decimal == 0))
-						{
-							printf("%*s", length_arr_indexes[j], " -");
-						}
-						else if ((decimal != 0))
-						{
-							printf("%*ld | ", length_arr_indexes[j], decimal);
-						}
-						else if ((decimal == 0))
-						{
-							printf("%*s | ", length_arr_indexes[j], " -");
-						}
+						printf("%*s", length_arr_indexes[j], column_names[j]);
 					}
-					else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+					else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
 					{
-						// process as string
-						value = (char *)calloc(1, atoi(column_length[j]));
-						recordOffset += 1; // account for btye for length of the value
-						memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_length[j]));
-						recordOffset += atoi(column_length[j]);
-						if ((j == tab_entry->num_columns - 1) && (strlen(value) != 0))
-						{
-							printf("%-*s", length_arr_indexes[j], value);
-						}
-						else if ((j == tab_entry->num_columns - 1) && (strlen(value) == 0))
-						{
-							printf("%-*s", length_arr_indexes[j], " -");
-						}
-						else if ((strlen(value) != 0))
-						{
-							printf("%-*s | ", length_arr_indexes[j], value);
-						}
-						else if ((strlen(value) == 0))
-						{
-							printf("%-*s | ", length_arr_indexes[j], " -");
-						}
+						printf("%-*s|", length_arr_indexes[j], column_names[j]);
 					}
-					// account for null
-					free(value);
+					else if ((atoi(column_type[j]) == T_INT))
+					{
+						printf("%*s | ", length_arr_indexes[j], column_names[j]);
+					}
+					else if (((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
+					{
+						printf("%-*s | ", length_arr_indexes[j], column_names[j]);
+					}
 					j++;
 				}
-				free(record);
-				record = NULL;
-				recordOffset = 0;
-				j = 0;
 				printf("\n");
+				print_separator(sum_table_length + 1);
+				char *record = NULL;
+				char *value;
+				j = 0;
+				int recordOffset = 0;
+				for (i = 0; i < old_header->num_records; i++)
+				{
+					record = (char *)calloc(1, old_header->record_size);
+					memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+					while (j < tab_entry->num_columns)
+					{
+						value = NULL;
+						if (atoi(column_type[j]) == T_INT)
+						{
+							// process as a int
+							value = (char *)calloc(1, sizeof(int));
+							recordOffset += 1; // account for length byte
+							memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), sizeof(int));
+							recordOffset += sizeof(int);
+							char hexValue[16];
+							char temp[16];
+							memset(hexValue, '\0', 16);
+							strcat(hexValue, "0x");
+							sprintf(temp, "%x", (int)value[1]);
+							strcat(hexValue, temp);
+							sprintf(temp, "%x", (int)value[0]);
+							strcat(hexValue, temp);
+							long decimal = strtol(hexValue, NULL, 16);
+							if ((j == tab_entry->num_columns - 1) && (decimal != 0))
+							{
+								printf("%*ld", length_arr_indexes[j], decimal);
+							}
+							else if ((j == tab_entry->num_columns - 1) && (decimal == 0))
+							{
+								printf("%*s", length_arr_indexes[j], " -");
+							}
+							else if ((decimal != 0))
+							{
+								printf("%*ld | ", length_arr_indexes[j], decimal);
+							}
+							else if ((decimal == 0))
+							{
+								printf("%*s | ", length_arr_indexes[j], " -");
+							}
+						}
+						else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+						{
+							// process as string
+							value = (char *)calloc(1, atoi(column_length[j]));
+							recordOffset += 1; // account for btye for length of the value
+							memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_length[j]));
+							recordOffset += atoi(column_length[j]);
+							if ((j == tab_entry->num_columns - 1) && (strlen(value) != 0))
+							{
+								printf("%-*s", length_arr_indexes[j], value);
+							}
+							else if ((j == tab_entry->num_columns - 1) && (strlen(value) == 0))
+							{
+								printf("%-*s", length_arr_indexes[j], " -");
+							}
+							else if ((strlen(value) != 0))
+							{
+								printf("%-*s | ", length_arr_indexes[j], value);
+							}
+							else if ((strlen(value) == 0))
+							{
+								printf("%-*s | ", length_arr_indexes[j], " -");
+							}
+						}
+						// account for null
+						free(value);
+						j++;
+					}
+					free(record);
+					record = NULL;
+					recordOffset = 0;
+					j = 0;
+					printf("\n");
+				}
+				// print end divider
+				print_separator(sum_table_length + 1);
 			}
-			// print end divider
-			print_separator(sum_table_length + 1);
 		}
 	}
 	// check if statement has natural join option

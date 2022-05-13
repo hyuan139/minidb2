@@ -5464,129 +5464,98 @@ int sem_update(token_list *t_list)
 					{
 						update_val_int = 0;
 						cur = cur->next;
+						for (i = 0; i < tab_entry->num_columns; i++)
+						{
+							if (strcmp(column_to_update, column_names[i]) == 0)
+							{
+								if (atoi(column_type[i]) == T_INT)
+								{
+									column_update_is_int = true;
+								}
+								else if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+								{
+									column_update_is_string = true;
+								}
+							}
+						}
 						if (cur->tok_value == K_WHERE)
 						{
 							cur = cur->next;
 							// UPDATE WHERE condition
 							strcpy(cond_column_name, cur->tok_string);
 							cur = cur->next;
-							if (cur->tok_value == S_EQUAL)
+							if (column_update_is_int)
 							{
-								cur = cur->next;
-								if (cur->next->tok_value != EOC)
+								if (cur->tok_value == S_EQUAL)
 								{
-									rc = INVALID_UPDATE_DEFINITION;
-									cur->tok_class = error;
-									cur->tok_value = INVALID;
-								}
-								else
-								{
-									// proceed with update where column = value
-									if (cur->tok_value == INT_LITERAL)
+									cur = cur->next;
+									if (cur->next->tok_value != EOC)
 									{
-										cond_val = atoi(cur->tok_string);
-										// command looks good, proceed
-										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										rc = INVALID_UPDATE_DEFINITION;
+										cur->tok_class = error;
+										cur->tok_value = INVALID;
+									}
+									else
+									{
+										// proceed with update where column = value
+										if (cur->tok_value == INT_LITERAL)
 										{
-											printf("Error while opening %s file\n", filename);
-											rc = FILE_OPEN_ERROR;
-											cur->tok_value = INVALID;
-										}
-										else
-										{
-											// Read the old header information from the tab file.
-											fstat(fileno(fhandle), &file_stat);
-											old_header = (table_file_header *)calloc(1, file_stat.st_size);
-											fread(old_header, file_stat.st_size, 1, fhandle);
-											for (i = 0; i < tab_entry->num_columns; i++)
+											cond_val = atoi(cur->tok_string);
+											// command looks good, proceed
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
 											{
-												if (strcmp(cond_column_name, column_names[i]) == 0)
-												{
-													compare_column_exists = true;
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_compare_is_int = true;
-													}
-												}
-												if (strcmp(column_to_update, column_names[i]) == 0)
-												{
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_update_is_int = true;
-													}
-												}
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
 											}
-											if (column_update_is_int && compare_column_exists && column_compare_is_int)
+											else
 											{
-												// copy records to buffer
-												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-												char *value = NULL;
-												int j = 0;
-												int columnOffset = 0;
-												for (i = 0; i < old_header->num_records; i++)
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
 												{
-													while (j < tab_entry->num_columns)
+													if (strcmp(cond_column_name, column_names[i]) == 0)
 													{
-														if (strcmp(column_to_update, column_names[j]) == 0)
+														compare_column_exists = true;
+														if (atoi(column_type[i]) == T_INT)
 														{
-															update_column_offset = columnOffset + 1; // account for length byte
+															column_compare_is_int = true;
 														}
-														if (strcmp(cond_column_name, column_names[j]) == 0)
-														{
-															columnOffset += 1;
-															if (atoi(column_type[j]) == T_INT)
-															{
-																value = (char *)calloc(1, sizeof(int));
-																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
-																columnOffset += sizeof(int);
-																char hexValue[16];
-																char temp[16];
-																memset(hexValue, '\0', 16);
-																strcat(hexValue, "0x");
-																sprintf(temp, "%x", (int)value[1]);
-																strcat(hexValue, temp);
-																sprintf(temp, "%x", (int)value[0]);
-																strcat(hexValue, temp);
-																long decimal = strtol(hexValue, NULL, 16);
-																if (cond_val == decimal)
-																{
-																	records_to_update++;
-																}
-															}
-														}
-														else
-														{
-															columnOffset += (atoi(column_length[j]) + 1);
-														}
-														j++;
 													}
-													// reset
-													j = 0;
-													columnOffset = 0;
-													value = NULL;
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_update_is_int = true;
+														}
+													}
 												}
-												if (records_to_update == 0)
+												if (column_update_is_int && compare_column_exists && column_compare_is_int)
 												{
-													printf("Warning! No matching rows found\n");
-													return rc;
-												}
-												else
-												{
-													new_header = (table_file_header *)calloc(1, file_stat.st_size);
-													memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
-													index2 = 0; // reset
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
 													for (i = 0; i < old_header->num_records; i++)
 													{
 														while (j < tab_entry->num_columns)
 														{
-															columnOffset += 1;
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+															}
 															if (strcmp(cond_column_name, column_names[j]) == 0)
 															{
+																columnOffset += 1;
 																if (atoi(column_type[j]) == T_INT)
 																{
 																	value = (char *)calloc(1, sizeof(int));
 																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																	columnOffset += sizeof(int);
 																	char hexValue[16];
 																	char temp[16];
 																	memset(hexValue, '\0', 16);
@@ -5598,14 +5567,13 @@ int sem_update(token_list *t_list)
 																	long decimal = strtol(hexValue, NULL, 16);
 																	if (cond_val == decimal)
 																	{
-																		// update row here
-																		memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		records_to_update++;
 																	}
 																}
 															}
 															else
 															{
-																columnOffset += atoi(column_length[j]);
+																columnOffset += (atoi(column_length[j]) + 1);
 															}
 															j++;
 														}
@@ -5614,131 +5582,139 @@ int sem_update(token_list *t_list)
 														columnOffset = 0;
 														value = NULL;
 													}
-												}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														index2 = 0; // reset
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																columnOffset += 1;
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	if (atoi(column_type[j]) == T_INT)
+																	{
+																		value = (char *)calloc(1, sizeof(int));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																		char hexValue[16];
+																		char temp[16];
+																		memset(hexValue, '\0', 16);
+																		strcat(hexValue, "0x");
+																		sprintf(temp, "%x", (int)value[1]);
+																		strcat(hexValue, temp);
+																		sprintf(temp, "%x", (int)value[0]);
+																		strcat(hexValue, temp);
+																		long decimal = strtol(hexValue, NULL, 16);
+																		if (cond_val == decimal)
+																		{
+																			// update row here
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += atoi(column_length[j]);
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
 
-												if ((fhandle = fopen(filename, "wbc")) == NULL)
-												{
-													rc = FILE_OPEN_ERROR;
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+														fclose(fhandle);
+													}
 												}
 												else
 												{
-													// write file
-													fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
-													printf("Update success! Number of rows affected (%d)\n", records_to_update);
-													free(old_header);
-													free(new_header);
-													fclose(fhandle);
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
 												}
+											}
+										}
+										else if (cur->tok_value == STRING_LITERAL)
+										{
+											strcpy(cond_string, cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
 											}
 											else
 											{
-												rc = COLUMN_NOT_EXIST;
-												cur->tok_class = error;
-												cur->tok_value = INVALID;
-											}
-										}
-									}
-									else if (cur->tok_value == STRING_LITERAL)
-									{
-										strcpy(cond_string, cur->tok_string);
-										if ((fhandle = fopen(filename, "rbc")) == NULL)
-										{
-											printf("Error while opening %s file\n", filename);
-											rc = FILE_OPEN_ERROR;
-											cur->tok_value = INVALID;
-										}
-										else
-										{
-											// Read the old header information from the tab file.
-											fstat(fileno(fhandle), &file_stat);
-											old_header = (table_file_header *)calloc(1, file_stat.st_size);
-											fread(old_header, file_stat.st_size, 1, fhandle);
-											// get table information
-											for (i = 0; i < tab_entry->num_columns; i++)
-											{
-												if (strcmp(cond_column_name, column_names[i]) == 0)
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												// get table information
+												for (i = 0; i < tab_entry->num_columns; i++)
 												{
-													compare_column_exists = true;
-													if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+													if (strcmp(cond_column_name, column_names[i]) == 0)
 													{
-														column_compare_is_string = true;
+														compare_column_exists = true;
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_compare_is_string = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_update_is_int = true;
+														}
 													}
 												}
-												if (strcmp(column_to_update, column_names[i]) == 0)
+												if (column_update_is_int && compare_column_exists && column_compare_is_string)
 												{
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_update_is_int = true;
-													}
-												}
-											}
-											if (column_update_is_int && compare_column_exists && column_compare_is_string)
-											{
-												// copy records to buffer
-												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-												char *value = NULL;
-												int j = 0;
-												int columnOffset = 0;
-												for (i = 0; i < old_header->num_records; i++)
-												{
-													while (j < tab_entry->num_columns)
-													{
-														if (strcmp(column_to_update, column_names[j]) == 0)
-														{
-															update_column_offset = columnOffset + 1; // account for length byte
-														}
-														if (strcmp(cond_column_name, column_names[j]) == 0)
-														{
-															columnOffset += 1; // account for length byte
-															if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
-															{
-																value = (char *)calloc(1, atoi(column_length[j]));
-																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
-																columnOffset += atoi(column_length[j]);
-																if (strcmp(cond_string, value) == 0)
-																{
-																	records_to_update++;
-																}
-															}
-														}
-														else
-														{
-															columnOffset += (atoi(column_length[j]) + 1); // account for length byte
-														}
-														j++;
-													}
-													// reset
-													j = 0;
-													columnOffset = 0;
-													value = NULL;
-												}
-
-												if (records_to_update == 0)
-												{
-													printf("Warning! No matching rows found\n");
-													return rc;
-												}
-												else
-												{
-													new_header = (table_file_header *)calloc(1, file_stat.st_size);
-													memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
 													for (i = 0; i < old_header->num_records; i++)
 													{
 														while (j < tab_entry->num_columns)
 														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+															}
 															if (strcmp(cond_column_name, column_names[j]) == 0)
 															{
-																columnOffset += 1;
-
+																columnOffset += 1; // account for length byte
 																if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 																{
 																	value = (char *)calloc(1, atoi(column_length[j]));
 																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																	columnOffset += atoi(column_length[j]);
 																	if (strcmp(cond_string, value) == 0)
 																	{
-																		// update row here
-																		memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		records_to_update++;
 																	}
 																}
 															}
@@ -5753,153 +5729,146 @@ int sem_update(token_list *t_list)
 														columnOffset = 0;
 														value = NULL;
 													}
-												}
-												if ((fhandle = fopen(filename, "wbc")) == NULL)
-												{
-													rc = FILE_OPEN_ERROR;
+
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+
+																	if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																	{
+																		value = (char *)calloc(1, atoi(column_length[j]));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																		if (strcmp(cond_string, value) == 0)
+																		{
+																			// update row here
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
 												}
 												else
 												{
-													// write file
-													fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
-													printf("Update success! Number of rows affected (%d)\n", records_to_update);
-													free(old_header);
-													free(new_header);
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
 												}
 											}
-											else
-											{
-												rc = COLUMN_NOT_EXIST;
-												cur->tok_class = error;
-												cur->tok_value = INVALID;
-											}
+										}
+										else
+										{
+											rc = INVALID_UPDATE_DEFINITION;
+											cur->tok_class = error;
+											cur->tok_value = INVALID;
 										}
 									}
-									else
+								}
+								else if (cur->tok_value == S_LESS)
+								{
+									cur = cur->next;
+									if (cur->next->tok_value != EOC)
 									{
 										rc = INVALID_UPDATE_DEFINITION;
 										cur->tok_class = error;
 										cur->tok_value = INVALID;
 									}
-								}
-							}
-							else if (cur->tok_value == S_LESS)
-							{
-								cur = cur->next;
-								if (cur->next->tok_value != EOC)
-								{
-									rc = INVALID_UPDATE_DEFINITION;
-									cur->tok_class = error;
-									cur->tok_value = INVALID;
-								}
-								else
-								{
-									// proceed with update where column < value
-									if (cur->tok_value == INT_LITERAL)
+									else
 									{
-										cond_val = atoi(cur->tok_string);
-										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										// proceed with update where column < value
+										if (cur->tok_value == INT_LITERAL)
 										{
-											printf("Error while opening %s file\n", filename);
-											rc = FILE_OPEN_ERROR;
-											cur->tok_value = INVALID;
-										}
-										else
-										{
-											// Read the old header information from the tab file.
-											fstat(fileno(fhandle), &file_stat);
-											old_header = (table_file_header *)calloc(1, file_stat.st_size);
-											fread(old_header, file_stat.st_size, 1, fhandle);
-											for (i = 0; i < tab_entry->num_columns; i++)
+											cond_val = atoi(cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
 											{
-												if (strcmp(cond_column_name, column_names[i]) == 0)
-												{
-													compare_column_exists = true;
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_compare_is_int = true;
-													}
-												}
-												if (strcmp(column_to_update, column_names[i]) == 0)
-												{
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_update_is_int = true;
-													}
-												}
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
 											}
-											if (column_update_is_int && compare_column_exists && column_compare_is_int)
+											else
 											{
-												// copy records to buffer
-												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-												char *value = NULL;
-												int j = 0;
-												int columnOffset = 0;
-												for (i = 0; i < old_header->num_records; i++)
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
 												{
-													while (j < tab_entry->num_columns)
+													if (strcmp(cond_column_name, column_names[i]) == 0)
 													{
-														// columnOffset += 1;
-														if (strcmp(column_to_update, column_names[j]) == 0)
+														compare_column_exists = true;
+														if (atoi(column_type[i]) == T_INT)
 														{
-															update_column_offset = columnOffset + 1; // account for length byte
+															column_compare_is_int = true;
 														}
-														if (strcmp(cond_column_name, column_names[j]) == 0)
-														{
-															columnOffset += 1;
-															if (atoi(column_type[j]) == T_INT)
-															{
-																value = (char *)calloc(1, sizeof(int));
-																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
-																columnOffset += sizeof(int);
-																char hexValue[16];
-																char temp[16];
-																memset(hexValue, '\0', 16);
-																strcat(hexValue, "0x");
-																sprintf(temp, "%x", (int)value[1]);
-																strcat(hexValue, temp);
-																sprintf(temp, "%x", (int)value[0]);
-																strcat(hexValue, temp);
-																long decimal = strtol(hexValue, NULL, 16);
-																if (decimal < cond_val)
-																{
-																	records_to_update++;
-																}
-															}
-														}
-														else
-														{
-															columnOffset += (atoi(column_length[j]) + 1);
-														}
-														j++;
 													}
-													// reset
-													j = 0;
-													columnOffset = 0;
-													value = NULL;
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_update_is_int = true;
+														}
+													}
 												}
-												if (records_to_update == 0)
+												if (column_update_is_int && compare_column_exists && column_compare_is_int)
 												{
-													printf("Warning! No matching rows found\n");
-													return rc;
-												}
-												else
-												{
-													new_header = (table_file_header *)calloc(1, file_stat.st_size);
-													memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
-													index2 = 0; // reset
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
 													for (i = 0; i < old_header->num_records; i++)
 													{
 														while (j < tab_entry->num_columns)
 														{
-															columnOffset += 1;
+															// columnOffset += 1;
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+															}
 															if (strcmp(cond_column_name, column_names[j]) == 0)
 															{
+																columnOffset += 1;
 																if (atoi(column_type[j]) == T_INT)
 																{
 																	value = (char *)calloc(1, sizeof(int));
 																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																	columnOffset += sizeof(int);
 																	char hexValue[16];
 																	char temp[16];
 																	memset(hexValue, '\0', 16);
@@ -5911,14 +5880,13 @@ int sem_update(token_list *t_list)
 																	long decimal = strtol(hexValue, NULL, 16);
 																	if (decimal < cond_val)
 																	{
-																		// update row here
-																		memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		records_to_update++;
 																	}
 																}
 															}
 															else
 															{
-																columnOffset += atoi(column_length[j]);
+																columnOffset += (atoi(column_length[j]) + 1);
 															}
 															j++;
 														}
@@ -5927,128 +5895,137 @@ int sem_update(token_list *t_list)
 														columnOffset = 0;
 														value = NULL;
 													}
-												}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														index2 = 0; // reset
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																columnOffset += 1;
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	if (atoi(column_type[j]) == T_INT)
+																	{
+																		value = (char *)calloc(1, sizeof(int));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																		char hexValue[16];
+																		char temp[16];
+																		memset(hexValue, '\0', 16);
+																		strcat(hexValue, "0x");
+																		sprintf(temp, "%x", (int)value[1]);
+																		strcat(hexValue, temp);
+																		sprintf(temp, "%x", (int)value[0]);
+																		strcat(hexValue, temp);
+																		long decimal = strtol(hexValue, NULL, 16);
+																		if (decimal < cond_val)
+																		{
+																			// update row here
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += atoi(column_length[j]);
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
 
-												if ((fhandle = fopen(filename, "wbc")) == NULL)
-												{
-													rc = FILE_OPEN_ERROR;
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of records affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
 												}
 												else
 												{
-													// write file
-													fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
-													printf("Update success! Number of records affected (%d)\n", records_to_update);
-													free(old_header);
-													free(new_header);
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
 												}
+											}
+										}
+										else if (cur->tok_value == STRING_LITERAL)
+										{
+											strcpy(cond_string, cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
 											}
 											else
 											{
-												rc = COLUMN_NOT_EXIST;
-												cur->tok_class = error;
-												cur->tok_value = INVALID;
-											}
-										}
-									}
-									else if (cur->tok_value == STRING_LITERAL)
-									{
-										strcpy(cond_string, cur->tok_string);
-										if ((fhandle = fopen(filename, "rbc")) == NULL)
-										{
-											printf("Error while opening %s file\n", filename);
-											rc = FILE_OPEN_ERROR;
-											cur->tok_value = INVALID;
-										}
-										else
-										{
-											// Read the old header information from the tab file.
-											fstat(fileno(fhandle), &file_stat);
-											old_header = (table_file_header *)calloc(1, file_stat.st_size);
-											fread(old_header, file_stat.st_size, 1, fhandle);
-											for (i = 0; i < tab_entry->num_columns; i++)
-											{
-												if (strcmp(cond_column_name, column_names[i]) == 0)
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
 												{
-													compare_column_exists = true;
-													if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+													if (strcmp(cond_column_name, column_names[i]) == 0)
 													{
-														column_compare_is_string = true;
+														compare_column_exists = true;
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_compare_is_string = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_update_is_int = true;
+														}
 													}
 												}
-												if (strcmp(column_to_update, column_names[i]) == 0)
+												if (column_update_is_int && compare_column_exists && column_compare_is_string)
 												{
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_update_is_int = true;
-													}
-												}
-											}
-											if (column_update_is_int && compare_column_exists && column_compare_is_string)
-											{
-												// copy records to buffer
-												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-												char *value = NULL;
-												int j = 0;
-												int columnOffset = 0;
-												for (i = 0; i < old_header->num_records; i++)
-												{
-													while (j < tab_entry->num_columns)
-													{
-														if (strcmp(column_to_update, column_names[j]) == 0)
-														{
-															update_column_offset = columnOffset + 1; // account for length byte
-														}
-														if (strcmp(cond_column_name, column_names[j]) == 0)
-														{
-															columnOffset += 1; // account for length byte
-															if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
-															{
-																value = (char *)calloc(1, atoi(column_length[j]));
-																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
-																columnOffset += atoi(column_length[j]);
-																if (strcmp(value, cond_string) < 0)
-																{
-																	records_to_update++;
-																}
-															}
-														}
-														else
-														{
-															columnOffset += (atoi(column_length[j]) + 1); // account for length byte
-														}
-														j++;
-													}
-													// reset
-													j = 0;
-													columnOffset = 0;
-													value = NULL;
-												}
-												if (records_to_update == 0)
-												{
-													printf("Warning! No matching rows found\n");
-													return rc; // don't proceed further
-												}
-												else
-												{
-													new_header = (table_file_header *)calloc(1, file_stat.st_size);
-													memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
 													for (i = 0; i < old_header->num_records; i++)
 													{
 														while (j < tab_entry->num_columns)
 														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+															}
 															if (strcmp(cond_column_name, column_names[j]) == 0)
 															{
-																columnOffset += 1;
-
+																columnOffset += 1; // account for length byte
 																if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 																{
 																	value = (char *)calloc(1, atoi(column_length[j]));
 																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																	columnOffset += atoi(column_length[j]);
 																	if (strcmp(value, cond_string) < 0)
 																	{
-																		// update row here
-																		memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		records_to_update++;
 																	}
 																}
 															}
@@ -6063,152 +6040,144 @@ int sem_update(token_list *t_list)
 														columnOffset = 0;
 														value = NULL;
 													}
-												}
-												if ((fhandle = fopen(filename, "wbc")) == NULL)
-												{
-													rc = FILE_OPEN_ERROR;
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc; // don't proceed further
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+
+																	if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																	{
+																		value = (char *)calloc(1, atoi(column_length[j]));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																		if (strcmp(value, cond_string) < 0)
+																		{
+																			// update row here
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
 												}
 												else
 												{
-													// write file
-													fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
-													printf("Update success! Number of rows affected (%d)\n", records_to_update);
-													free(old_header);
-													free(new_header);
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
 												}
 											}
-											else
-											{
-												rc = COLUMN_NOT_EXIST;
-												cur->tok_class = error;
-												cur->tok_value = INVALID;
-											}
+										}
+										else
+										{
+											rc = INVALID_UPDATE_DEFINITION;
+											cur->tok_class = error;
+											cur->tok_value = INVALID;
 										}
 									}
-									else
+								}
+								else if (cur->tok_value == S_GREATER)
+								{
+									cur = cur->next;
+									if (cur->next->tok_value != EOC)
 									{
 										rc = INVALID_UPDATE_DEFINITION;
 										cur->tok_class = error;
 										cur->tok_value = INVALID;
 									}
-								}
-							}
-							else if (cur->tok_value == S_GREATER)
-							{
-								cur = cur->next;
-								if (cur->next->tok_value != EOC)
-								{
-									rc = INVALID_UPDATE_DEFINITION;
-									cur->tok_class = error;
-									cur->tok_value = INVALID;
-								}
-								else
-								{
-									// proceed with update where column > value
-									if (cur->tok_value == INT_LITERAL)
+									else
 									{
-										cond_val = atoi(cur->tok_string);
-										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										// proceed with update where column > value
+										if (cur->tok_value == INT_LITERAL)
 										{
-											printf("Error while opening %s file\n", filename);
-											rc = FILE_OPEN_ERROR;
-											cur->tok_value = INVALID;
-										}
-										else
-										{
-											// Read the old header information from the tab file.
-											fstat(fileno(fhandle), &file_stat);
-											old_header = (table_file_header *)calloc(1, file_stat.st_size);
-											fread(old_header, file_stat.st_size, 1, fhandle);
-											for (i = 0; i < tab_entry->num_columns; i++)
+											cond_val = atoi(cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
 											{
-												if (strcmp(cond_column_name, column_names[i]) == 0)
-												{
-													compare_column_exists = true;
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_compare_is_int = true;
-													}
-												}
-												if (strcmp(column_to_update, column_names[i]) == 0)
-												{
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_update_is_int = true;
-													}
-												}
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
 											}
-											if (column_update_is_int && compare_column_exists && column_compare_is_int)
+											else
 											{
-												// copy records to buffer
-												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-												char *value = NULL;
-												int j = 0;
-												int columnOffset = 0;
-												for (i = 0; i < old_header->num_records; i++)
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
 												{
-													while (j < tab_entry->num_columns)
+													if (strcmp(cond_column_name, column_names[i]) == 0)
 													{
-														if (strcmp(column_to_update, column_names[j]) == 0)
+														compare_column_exists = true;
+														if (atoi(column_type[i]) == T_INT)
 														{
-															update_column_offset = columnOffset + 1; // account for length byte
+															column_compare_is_int = true;
 														}
-														if (strcmp(cond_column_name, column_names[j]) == 0)
-														{
-															columnOffset += 1;
-															if (atoi(column_type[j]) == T_INT)
-															{
-																value = (char *)calloc(1, sizeof(int));
-																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
-																columnOffset += sizeof(int);
-																char hexValue[16];
-																char temp[16];
-																memset(hexValue, '\0', 16);
-																strcat(hexValue, "0x");
-																sprintf(temp, "%x", (int)value[1]);
-																strcat(hexValue, temp);
-																sprintf(temp, "%x", (int)value[0]);
-																strcat(hexValue, temp);
-																long decimal = strtol(hexValue, NULL, 16);
-																if (decimal > cond_val)
-																{
-																	records_to_update++;
-																}
-															}
-														}
-														else
-														{
-															columnOffset += (atoi(column_length[j]) + 1);
-														}
-														j++;
 													}
-													// reset
-													j = 0;
-													columnOffset = 0;
-													value = NULL;
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_update_is_int = true;
+														}
+													}
 												}
-												if (records_to_update == 0)
+												if (column_update_is_int && compare_column_exists && column_compare_is_int)
 												{
-													printf("Warning! No matching rows found\n");
-													return rc;
-												}
-												else
-												{
-													new_header = (table_file_header *)calloc(1, file_stat.st_size);
-													memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
-													index2 = 0; // reset
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
 													for (i = 0; i < old_header->num_records; i++)
 													{
 														while (j < tab_entry->num_columns)
 														{
-															columnOffset += 1;
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+															}
 															if (strcmp(cond_column_name, column_names[j]) == 0)
 															{
+																columnOffset += 1;
 																if (atoi(column_type[j]) == T_INT)
 																{
 																	value = (char *)calloc(1, sizeof(int));
 																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																	columnOffset += sizeof(int);
 																	char hexValue[16];
 																	char temp[16];
 																	memset(hexValue, '\0', 16);
@@ -6220,14 +6189,13 @@ int sem_update(token_list *t_list)
 																	long decimal = strtol(hexValue, NULL, 16);
 																	if (decimal > cond_val)
 																	{
-																		// update row here
-																		memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		records_to_update++;
 																	}
 																}
 															}
 															else
 															{
-																columnOffset += atoi(column_length[j]);
+																columnOffset += (atoi(column_length[j]) + 1);
 															}
 															j++;
 														}
@@ -6236,129 +6204,137 @@ int sem_update(token_list *t_list)
 														columnOffset = 0;
 														value = NULL;
 													}
-												}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														index2 = 0; // reset
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																columnOffset += 1;
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	if (atoi(column_type[j]) == T_INT)
+																	{
+																		value = (char *)calloc(1, sizeof(int));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																		char hexValue[16];
+																		char temp[16];
+																		memset(hexValue, '\0', 16);
+																		strcat(hexValue, "0x");
+																		sprintf(temp, "%x", (int)value[1]);
+																		strcat(hexValue, temp);
+																		sprintf(temp, "%x", (int)value[0]);
+																		strcat(hexValue, temp);
+																		long decimal = strtol(hexValue, NULL, 16);
+																		if (decimal > cond_val)
+																		{
+																			// update row here
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += atoi(column_length[j]);
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
 
-												if ((fhandle = fopen(filename, "wbc")) == NULL)
-												{
-													rc = FILE_OPEN_ERROR;
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of records affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
 												}
 												else
 												{
-													// write file
-													fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
-													printf("Update success! Number of records affected (%d)\n", records_to_update);
-													free(old_header);
-													free(new_header);
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
 												}
+											}
+										}
+										else if (cur->tok_value == STRING_LITERAL)
+										{
+											strcpy(cond_string, cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
 											}
 											else
 											{
-												rc = COLUMN_NOT_EXIST;
-												cur->tok_class = error;
-												cur->tok_value = INVALID;
-											}
-										}
-									}
-									else if (cur->tok_value == STRING_LITERAL)
-									{
-										strcpy(cond_string, cur->tok_string);
-										if ((fhandle = fopen(filename, "rbc")) == NULL)
-										{
-											printf("Error while opening %s file\n", filename);
-											rc = FILE_OPEN_ERROR;
-											cur->tok_value = INVALID;
-										}
-										else
-										{
-											// Read the old header information from the tab file.
-											fstat(fileno(fhandle), &file_stat);
-											old_header = (table_file_header *)calloc(1, file_stat.st_size);
-											fread(old_header, file_stat.st_size, 1, fhandle);
-											for (i = 0; i < tab_entry->num_columns; i++)
-											{
-												if (strcmp(cond_column_name, column_names[i]) == 0)
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
 												{
-													compare_column_exists = true;
-													if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+													if (strcmp(cond_column_name, column_names[i]) == 0)
 													{
-														column_compare_is_string = true;
+														compare_column_exists = true;
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_compare_is_string = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_update_is_int = true;
+														}
 													}
 												}
-												if (strcmp(column_to_update, column_names[i]) == 0)
+												if (column_update_is_int && compare_column_exists && column_compare_is_string)
 												{
-													if (atoi(column_type[i]) == T_INT)
-													{
-														column_update_is_int = true;
-													}
-												}
-											}
-											if (column_update_is_int && compare_column_exists && column_compare_is_string)
-											{
-												// copy records to buffer
-												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
-												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
-												char *value = NULL;
-												int j = 0;
-												int columnOffset = 0;
-												for (i = 0; i < old_header->num_records; i++)
-												{
-													while (j < tab_entry->num_columns)
-													{
-														if (strcmp(column_to_update, column_names[j]) == 0)
-														{
-															update_column_offset = columnOffset + 1; // account for length byte
-														}
-														if (strcmp(cond_column_name, column_names[j]) == 0)
-														{
-															columnOffset += 1; // account for length byte
-															if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
-															{
-																value = (char *)calloc(1, atoi(column_length[j]));
-																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
-																columnOffset += atoi(column_length[j]);
-																if (strcmp(value, cond_string) > 0)
-																{
-																	records_to_update++;
-																}
-															}
-														}
-														else
-														{
-															columnOffset += (atoi(column_length[j]) + 1); // account for length byte
-														}
-														j++;
-													}
-													// reset
-													j = 0;
-													columnOffset = 0;
-													value = NULL;
-												}
-
-												if (records_to_update == 0)
-												{
-													printf("Warning! No matching rows found\n");
-													return rc; // don't proceed further
-												}
-												else
-												{
-													new_header = (table_file_header *)calloc(1, file_stat.st_size);
-													memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
 													for (i = 0; i < old_header->num_records; i++)
 													{
 														while (j < tab_entry->num_columns)
 														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+															}
 															if (strcmp(cond_column_name, column_names[j]) == 0)
 															{
-																columnOffset += 1;
-
+																columnOffset += 1; // account for length byte
 																if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
 																{
 																	value = (char *)calloc(1, atoi(column_length[j]));
 																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																	columnOffset += atoi(column_length[j]);
 																	if (strcmp(value, cond_string) > 0)
 																	{
-																		// update row here
-																		memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		records_to_update++;
 																	}
 																}
 															}
@@ -6373,41 +6349,1037 @@ int sem_update(token_list *t_list)
 														columnOffset = 0;
 														value = NULL;
 													}
-												}
-												if ((fhandle = fopen(filename, "wbc")) == NULL)
-												{
-													rc = FILE_OPEN_ERROR;
+
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc; // don't proceed further
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+
+																	if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																	{
+																		value = (char *)calloc(1, atoi(column_length[j]));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																		if (strcmp(value, cond_string) > 0)
+																		{
+																			// update row here
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset), (void *)((char *)&update_val_int), sizeof(int));
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
 												}
 												else
 												{
-													// write file
-													fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
-													printf("Update success! Number of rows affected (%d)\n", records_to_update);
-													free(old_header);
-													free(new_header);
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
 												}
 											}
-											else
-											{
-												rc = COLUMN_NOT_EXIST;
-												cur->tok_class = error;
-												cur->tok_value = INVALID;
-											}
+										}
+										else
+										{
+											rc = INVALID_UPDATE_DEFINITION;
+											cur->tok_class = error;
+											cur->tok_value = INVALID;
 										}
 									}
-									else
+								}
+								else
+								{
+									rc = INVALID_UPDATE_DEFINITION;
+									cur->tok_class = error;
+									cur->tok_value = INVALID;
+								}
+							}
+							else if (column_update_is_string)
+							{
+								if (cur->tok_value == S_EQUAL)
+								{
+									cur = cur->next;
+									if (cur->next->tok_value != EOC)
 									{
 										rc = INVALID_UPDATE_DEFINITION;
 										cur->tok_class = error;
 										cur->tok_value = INVALID;
 									}
+									else
+									{
+										if (cur->tok_value == INT_LITERAL)
+										{
+											cond_val = atoi(cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
+											}
+											else
+											{
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
+												{
+													if (strcmp(cond_column_name, column_names[i]) == 0)
+													{
+														compare_column_exists = true;
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_compare_is_int = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_update_is_string = true;
+														}
+													}
+												}
+												if (column_update_is_string && compare_column_exists && column_compare_is_int)
+												{
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
+													for (i = 0; i < old_header->num_records; i++)
+													{
+														while (j < tab_entry->num_columns)
+														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+																index2 = j;
+															}
+															if (strcmp(cond_column_name, column_names[j]) == 0)
+															{
+																columnOffset += 1;
+																if (atoi(column_type[j]) == T_INT)
+																{
+																	value = (char *)calloc(1, sizeof(int));
+																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																	columnOffset += sizeof(int);
+																	char hexValue[16];
+																	char temp[16];
+																	memset(hexValue, '\0', 16);
+																	strcat(hexValue, "0x");
+																	sprintf(temp, "%x", (int)value[1]);
+																	strcat(hexValue, temp);
+																	sprintf(temp, "%x", (int)value[0]);
+																	strcat(hexValue, temp);
+																	long decimal = strtol(hexValue, NULL, 16);
+																	if (decimal == cond_val)
+																	{
+																		records_to_update++;
+																	}
+																}
+															}
+															else
+															{
+																columnOffset += (atoi(column_length[j]) + 1);
+															}
+															j++;
+														}
+														// reset
+														j = 0;
+														columnOffset = 0;
+														value = NULL;
+													}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														int len_updated_value = 0; // NULL for string is 0
+														char *newColumnValueBuffer;
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+																	newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
+																	if (atoi(column_type[j]) == T_INT)
+																	{
+																		value = (char *)calloc(1, sizeof(int));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																		char hexValue[16];
+																		char temp[16];
+																		memset(hexValue, '\0', 16);
+																		strcat(hexValue, "0x");
+																		sprintf(temp, "%x", (int)value[1]);
+																		strcat(hexValue, temp);
+																		sprintf(temp, "%x", (int)value[0]);
+																		strcat(hexValue, temp);
+																		long decimal = strtol(hexValue, NULL, 16);
+																		if (decimal == cond_val)
+																		{
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1);
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+														// write to file
+														if ((fhandle = fopen(filename, "wbc")) == NULL)
+														{
+															rc = FILE_OPEN_ERROR;
+														}
+														else
+														{
+															// write file
+															fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+															printf("Update success! Number of records affected (%d)\n", records_to_update);
+															free(old_header);
+															free(new_header);
+														}
+													}
+												}
+												else
+												{
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
+												}
+											}
+										}
+										else if (cur->tok_value == STRING_LITERAL)
+										{
+											strcpy(cond_string, cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
+											}
+											else
+											{
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
+												{
+													if (strcmp(cond_column_name, column_names[i]) == 0)
+													{
+														compare_column_exists = true;
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_compare_is_string = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_update_is_string = true;
+														}
+													}
+												}
+												if (column_update_is_string && compare_column_exists && column_compare_is_string)
+												{
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
+													for (i = 0; i < old_header->num_records; i++)
+													{
+														while (j < tab_entry->num_columns)
+														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+																index2 = j;
+															}
+															if (strcmp(cond_column_name, column_names[j]) == 0)
+															{
+																columnOffset += 1; // account for length byte
+																if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																{
+																	value = (char *)calloc(1, atoi(column_length[j]));
+																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																	columnOffset += atoi(column_length[j]);
+																	if (strcmp(value, cond_string) == 0)
+																	{
+																		records_to_update++;
+																	}
+																}
+															}
+															else
+															{
+																columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+															}
+															j++;
+														}
+														// reset
+														j = 0;
+														columnOffset = 0;
+														value = NULL;
+													}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc; // don't proceed further
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														int len_updated_value = 0;
+														char *newColumnValueBuffer;
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+																	newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1); // include length byte
+																	if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																	{
+																		value = (char *)calloc(1, atoi(column_length[j]));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																		if (strcmp(value, cond_string) == 0)
+																		{
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
+													// write to file
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
+												}
+												else
+												{
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
+												}
+											}
+										}
+										else
+										{
+											rc = INVALID_UPDATE_DEFINITION;
+											cur->tok_class = error;
+											cur->tok_value = INVALID;
+										}
+									}
 								}
-							}
-							else
-							{
-								rc = INVALID_UPDATE_DEFINITION;
-								cur->tok_class = error;
-								cur->tok_value = INVALID;
+								else if (cur->tok_value == S_LESS)
+								{
+									cur = cur->next;
+									if (cur->next->tok_value != EOC)
+									{
+										rc = INVALID_UPDATE_DEFINITION;
+										cur->tok_class = error;
+										cur->tok_value = INVALID;
+									}
+									else
+									{
+										if (cur->tok_value == INT_LITERAL)
+										{
+											cond_val = atoi(cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
+											}
+											else
+											{
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
+												{
+													if (strcmp(cond_column_name, column_names[i]) == 0)
+													{
+														compare_column_exists = true;
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_compare_is_int = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_update_is_string = true;
+														}
+													}
+												}
+												if (column_update_is_string && compare_column_exists && column_compare_is_int)
+												{
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
+													for (i = 0; i < old_header->num_records; i++)
+													{
+														while (j < tab_entry->num_columns)
+														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+																index2 = j;
+															}
+															if (strcmp(cond_column_name, column_names[j]) == 0)
+															{
+																columnOffset += 1;
+																if (atoi(column_type[j]) == T_INT)
+																{
+																	value = (char *)calloc(1, sizeof(int));
+																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																	columnOffset += sizeof(int);
+																	char hexValue[16];
+																	char temp[16];
+																	memset(hexValue, '\0', 16);
+																	strcat(hexValue, "0x");
+																	sprintf(temp, "%x", (int)value[1]);
+																	strcat(hexValue, temp);
+																	sprintf(temp, "%x", (int)value[0]);
+																	strcat(hexValue, temp);
+																	long decimal = strtol(hexValue, NULL, 16);
+																	if (decimal < cond_val)
+																	{
+																		records_to_update++;
+																	}
+																}
+															}
+															else
+															{
+																columnOffset += (atoi(column_length[j]) + 1);
+															}
+															j++;
+														}
+														// reset
+														j = 0;
+														columnOffset = 0;
+														value = NULL;
+													}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														int len_updated_value = 0;
+														char *newColumnValueBuffer;
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+																	newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
+																	if (atoi(column_type[j]) == T_INT)
+																	{
+																		value = (char *)calloc(1, sizeof(int));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																		char hexValue[16];
+																		char temp[16];
+																		memset(hexValue, '\0', 16);
+																		strcat(hexValue, "0x");
+																		sprintf(temp, "%x", (int)value[1]);
+																		strcat(hexValue, temp);
+																		sprintf(temp, "%x", (int)value[0]);
+																		strcat(hexValue, temp);
+																		long decimal = strtol(hexValue, NULL, 16);
+																		if (decimal < cond_val)
+																		{
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1);
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+														// write to file
+														if ((fhandle = fopen(filename, "wbc")) == NULL)
+														{
+															rc = FILE_OPEN_ERROR;
+														}
+														else
+														{
+															// write file
+															fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+															printf("Update success! Number of records affected (%d)\n", records_to_update);
+															free(old_header);
+															free(new_header);
+														}
+													}
+												}
+												else
+												{
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
+												}
+											}
+										}
+										else if (cur->tok_value == STRING_LITERAL)
+										{
+											strcpy(cond_string, cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
+											}
+											else
+											{
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
+												{
+													if (strcmp(cond_column_name, column_names[i]) == 0)
+													{
+														compare_column_exists = true;
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_compare_is_string = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_update_is_string = true;
+														}
+													}
+												}
+												if (column_update_is_string && compare_column_exists && column_compare_is_string)
+												{
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
+													for (i = 0; i < old_header->num_records; i++)
+													{
+														while (j < tab_entry->num_columns)
+														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+																index2 = j;
+															}
+															if (strcmp(cond_column_name, column_names[j]) == 0)
+															{
+																columnOffset += 1; // account for length byte
+																if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																{
+																	value = (char *)calloc(1, atoi(column_length[j]));
+																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																	columnOffset += atoi(column_length[j]);
+																	if (strcmp(value, cond_string) < 0)
+																	{
+																		records_to_update++;
+																	}
+																}
+															}
+															else
+															{
+																columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+															}
+															j++;
+														}
+														// reset
+														j = 0;
+														columnOffset = 0;
+														value = NULL;
+													}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc; // don't proceed further
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														int len_updated_value = 0;
+														char *newColumnValueBuffer;
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+																	newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
+																	if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																	{
+																		value = (char *)calloc(1, atoi(column_length[j]));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																		if (strcmp(value, cond_string) < 0)
+																		{
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
+													// write to file
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
+												}
+												else
+												{
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
+												}
+											}
+										}
+										else
+										{
+											rc = INVALID_UPDATE_DEFINITION;
+											cur->tok_class = error;
+											cur->tok_value = INVALID;
+										}
+									}
+								}
+								else if (cur->tok_value == S_GREATER)
+								{
+									cur = cur->next;
+									if (cur->next->tok_value != EOC)
+									{
+										rc = INVALID_UPDATE_DEFINITION;
+										cur->tok_class = error;
+										cur->tok_value = INVALID;
+									}
+									else
+									{
+										if (cur->tok_value == INT_LITERAL)
+										{
+											cond_val = atoi(cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
+											}
+											else
+											{
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												// get table information
+												for (i = 0; i < tab_entry->num_columns; i++)
+												{
+													if (strcmp(cond_column_name, column_names[i]) == 0)
+													{
+														compare_column_exists = true;
+														if (atoi(column_type[i]) == T_INT)
+														{
+															column_compare_is_int = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_update_is_string = true;
+														}
+													}
+												}
+												if (column_update_is_string && compare_column_exists && column_compare_is_int)
+												{
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
+													for (i = 0; i < old_header->num_records; i++)
+													{
+														while (j < tab_entry->num_columns)
+														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+																index2 = j;
+															}
+															if (strcmp(cond_column_name, column_names[j]) == 0)
+															{
+																columnOffset += 1;
+																if (atoi(column_type[j]) == T_INT)
+																{
+																	value = (char *)calloc(1, sizeof(int));
+																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																	columnOffset += sizeof(int);
+																	char hexValue[16];
+																	char temp[16];
+																	memset(hexValue, '\0', 16);
+																	strcat(hexValue, "0x");
+																	sprintf(temp, "%x", (int)value[1]);
+																	strcat(hexValue, temp);
+																	sprintf(temp, "%x", (int)value[0]);
+																	strcat(hexValue, temp);
+																	long decimal = strtol(hexValue, NULL, 16);
+																	if (decimal > cond_val)
+																	{
+																		records_to_update++;
+																	}
+																}
+															}
+															else
+															{
+																columnOffset += (atoi(column_length[j]) + 1);
+															}
+															j++;
+														}
+														// reset
+														j = 0;
+														columnOffset = 0;
+														value = NULL;
+													}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc;
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														int len_updated_value = 0;
+														char *newColumnValueBuffer;
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+																	newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
+																	if (atoi(column_type[j]) == T_INT)
+																	{
+																		value = (char *)calloc(1, sizeof(int));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), sizeof(int));
+																		char hexValue[16];
+																		char temp[16];
+																		memset(hexValue, '\0', 16);
+																		strcat(hexValue, "0x");
+																		sprintf(temp, "%x", (int)value[1]);
+																		strcat(hexValue, temp);
+																		sprintf(temp, "%x", (int)value[0]);
+																		strcat(hexValue, temp);
+																		long decimal = strtol(hexValue, NULL, 16);
+																		if (decimal > cond_val)
+																		{
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1);
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+														// write to file
+														if ((fhandle = fopen(filename, "wbc")) == NULL)
+														{
+															rc = FILE_OPEN_ERROR;
+														}
+														else
+														{
+															// write file
+															fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+															printf("Update success! Number of records affected (%d)\n", records_to_update);
+															free(old_header);
+															free(new_header);
+														}
+													}
+												}
+												else
+												{
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
+												}
+											}
+										}
+										else if (cur->tok_value == STRING_LITERAL)
+										{
+											strcpy(cond_string, cur->tok_string);
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												printf("Error while opening %s file\n", filename);
+												rc = FILE_OPEN_ERROR;
+												cur->tok_value = INVALID;
+											}
+											else
+											{
+												// Read the old header information from the tab file.
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread(old_header, file_stat.st_size, 1, fhandle);
+												for (i = 0; i < tab_entry->num_columns; i++)
+												{
+													if (strcmp(cond_column_name, column_names[i]) == 0)
+													{
+														compare_column_exists = true;
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_compare_is_string = true;
+														}
+													}
+													if (strcmp(column_to_update, column_names[i]) == 0)
+													{
+														if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+														{
+															column_update_is_string = true;
+														}
+													}
+												}
+												if (column_update_is_string && compare_column_exists && column_compare_is_string)
+												{
+													// copy records to buffer
+													records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+													memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+													char *value = NULL;
+													int j = 0;
+													int columnOffset = 0;
+													for (i = 0; i < old_header->num_records; i++)
+													{
+														while (j < tab_entry->num_columns)
+														{
+															if (strcmp(column_to_update, column_names[j]) == 0)
+															{
+																update_column_offset = columnOffset + 1; // account for length byte
+																index2 = j;
+															}
+															if (strcmp(cond_column_name, column_names[j]) == 0)
+															{
+																columnOffset += 1; // account for length byte
+																if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																{
+																	value = (char *)calloc(1, atoi(column_length[j]));
+																	memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																	columnOffset += atoi(column_length[j]);
+																	if (strcmp(value, cond_string) > 0)
+																	{
+																		records_to_update++;
+																	}
+																}
+															}
+															else
+															{
+																columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+															}
+															j++;
+														}
+														// reset
+														j = 0;
+														columnOffset = 0;
+														value = NULL;
+													}
+													if (records_to_update == 0)
+													{
+														printf("Warning! No matching rows found\n");
+														return rc; // don't proceed further
+													}
+													else
+													{
+														new_header = (table_file_header *)calloc(1, file_stat.st_size);
+														memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+														int len_updated_value = 0;
+														char *newColumnValueBuffer;
+														for (i = 0; i < old_header->num_records; i++)
+														{
+															while (j < tab_entry->num_columns)
+															{
+																if (strcmp(cond_column_name, column_names[j]) == 0)
+																{
+																	columnOffset += 1;
+																	newColumnValueBuffer = (char *)calloc(1, atoi(column_length[index2]) + 1);
+																	if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+																	{
+																		value = (char *)calloc(1, atoi(column_length[j]));
+																		memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + columnOffset), atoi(column_length[j]));
+																		if (strcmp(value, cond_string) > 0)
+																		{
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)newColumnValueBuffer), atoi(column_length[index2]) + 1);
+																			memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + update_column_offset - 1), (void *)((char *)&len_updated_value), 1);
+																		}
+																	}
+																}
+																else
+																{
+																	columnOffset += (atoi(column_length[j]) + 1); // account for length byte
+																}
+																j++;
+															}
+															// reset
+															j = 0;
+															columnOffset = 0;
+															value = NULL;
+														}
+													}
+													// write to file
+													if ((fhandle = fopen(filename, "wbc")) == NULL)
+													{
+														rc = FILE_OPEN_ERROR;
+													}
+													else
+													{
+														// write file
+														fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+														printf("Update success! Number of rows affected (%d)\n", records_to_update);
+														free(old_header);
+														free(new_header);
+													}
+												}
+												else
+												{
+													rc = COLUMN_NOT_EXIST;
+													cur->tok_class = error;
+													cur->tok_value = INVALID;
+												}
+											}
+										}
+										else
+										{
+											rc = INVALID_UPDATE_DEFINITION;
+											cur->tok_class = error;
+											cur->tok_value = INVALID;
+										}
+									}
+								}
+								else
+								{
+									rc = INVALID_UPDATE_DEFINITION;
+									cur->tok_class = error;
+									cur->tok_value = INVALID;
+								}
 							}
 						}
 						else

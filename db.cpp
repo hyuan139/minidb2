@@ -6438,11 +6438,119 @@ int sem_update(token_list *t_list)
 								}
 								if (column_update_is_int)
 								{
-									printf("Set column to be NULL, and column type is type int\n");
+									if ((fhandle = fopen(filename, "rbc")) == NULL)
+									{
+										printf("Error while opening %s file\n", filename);
+										rc = FILE_OPEN_ERROR;
+										cur->tok_value = INVALID;
+									}
+									else
+									{
+										printf("Set column to be NULL, and column type is type int\n");
+										// Read the old header information from the tab file.
+										fstat(fileno(fhandle), &file_stat);
+										old_header = (table_file_header *)calloc(1, file_stat.st_size);
+										fread(old_header, file_stat.st_size, 1, fhandle);
+										int j = 0;
+										int columnOffset = 0;
+										new_header = (table_file_header *)calloc(1, file_stat.st_size);
+										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										for (i = 0; i < old_header->num_records; i++)
+										{
+											while (j < tab_entry->num_columns)
+											{
+												columnOffset += 1;
+												if (strcmp(column_to_update, column_names[j]) == 0)
+												{
+
+													if (atoi(column_type[j]) == T_INT)
+													{
+														memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + columnOffset), (void *)((char *)&update_val_int), sizeof(int));
+													}
+												}
+												else
+												{
+													columnOffset += atoi(column_length[j]);
+												}
+												j++;
+											}
+											// reset
+											j = 0;
+											columnOffset = 0;
+										}
+										if ((fhandle = fopen(filename, "wbc")) == NULL)
+										{
+											rc = FILE_OPEN_ERROR;
+										}
+										else
+										{
+											// write file
+											fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+											printf("Update success! All rows affected\n");
+											free(old_header);
+											free(new_header);
+										}
+									}
 								}
 								else if (column_update_is_string)
 								{
 									printf("Set column to be NULL, and column type is type string\n");
+									if ((fhandle = fopen(filename, "rbc")) == NULL)
+									{
+										printf("Error while opening %s file\n", filename);
+										rc = FILE_OPEN_ERROR;
+										cur->tok_value = INVALID;
+									}
+									else
+									{
+										// Read the old header information from the tab file.
+										fstat(fileno(fhandle), &file_stat);
+										old_header = (table_file_header *)calloc(1, file_stat.st_size);
+										fread(old_header, file_stat.st_size, 1, fhandle);
+										int j = 0;
+										int columnOffset = 0;
+										new_header = (table_file_header *)calloc(1, file_stat.st_size);
+										memcpy((void *)((char *)new_header), (void *)old_header, old_header->file_size);
+										int len_updated_value = 0; // NULL for string value is 0
+										char *reset_columnBuffer;
+										for (i = 0; i < old_header->num_records; i++)
+										{
+											while (j < tab_entry->num_columns)
+											{
+												if (strcmp(column_to_update, column_names[j]) == 0)
+												{
+													reset_columnBuffer = (char *)calloc(1, atoi(column_length[j]) + 1);
+													if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+													{
+														memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + columnOffset), (void *)((char *)reset_columnBuffer), atoi(column_length[j]) + 1);
+														// add new length byte
+														memcpy((void *)((char *)new_header + new_header->record_offset + (i * old_header->record_size) + columnOffset), (void *)((char *)&len_updated_value), 1);
+													}
+												}
+												else
+												{
+													columnOffset += (atoi(column_length[j]) + 1);
+												}
+												j++;
+											}
+											// reset
+											j = 0;
+											columnOffset = 0;
+											free(reset_columnBuffer);
+										}
+										if ((fhandle = fopen(filename, "wbc")) == NULL)
+										{
+											rc = FILE_OPEN_ERROR;
+										}
+										else
+										{
+											// write file
+											fwrite((void *)((char *)new_header), old_header->file_size, 1, fhandle);
+											printf("Update success! All rows affected\n");
+											free(old_header);
+											free(new_header);
+										}
+									}
 								}
 							}
 						}

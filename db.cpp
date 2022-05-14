@@ -2113,6 +2113,14 @@ int sem_select_aggregate(token_list *t_list)
 								if (strcmp(aggregate_column_name, column_names[i]) == 0)
 								{
 									column_exists = true;
+									if (strlen(column_names[i]) == MAX_IDENT_LEN)
+									{
+										sum_table_length += MAX_IDENT_LEN;
+									}
+									else
+									{
+										sum_table_length += strlen(column_names[i]);
+									}
 									if (atoi(column_type[i]) == T_INT)
 									{
 										valid_aggregate_column = true;
@@ -2125,7 +2133,70 @@ int sem_select_aggregate(token_list *t_list)
 								printf("Column exists.\n");
 								if (valid_aggregate_column)
 								{
-									printf("Valid aggregate on column\n");
+									print_separator(sum_table_length + 5);
+									printf("avg(%s)\n", aggregate_column_name);
+									print_separator(sum_table_length + 5);
+									if ((fhandle = fopen(filename, "rbc")) == NULL)
+									{
+										rc = FILE_OPEN_ERROR;
+									}
+									else
+									{
+										fstat(fileno(fhandle), &file_stat);
+										old_header = (table_file_header *)calloc(1, file_stat.st_size);
+										fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+										int j = 0;
+										int offset = 0;
+										char *value;
+										records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+										memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+										for (i = 0; i < old_header->num_records; i++)
+										{
+											while (j < tab_entry->num_columns)
+											{
+												if (strcmp(aggregate_column_name, column_names[j]) == 0)
+												{
+													value = NULL;
+													if (atoi(column_type[j]) == T_INT)
+													{
+														value = (char *)calloc(1, sizeof(int));
+														offset += 1; // account for length byte
+														memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), sizeof(int));
+														offset += sizeof(int);
+														char hexValue[16];
+														char temp[16];
+														memset(hexValue, '\0', 16);
+														strcat(hexValue, "0x");
+														sprintf(temp, "%x", (int)value[1]);
+														strcat(hexValue, temp);
+														sprintf(temp, "%x", (int)value[0]);
+														strcat(hexValue, temp);
+														long decimal = strtol(hexValue, NULL, 16);
+														sum += decimal;
+														free(value);
+													}
+												}
+												else
+												{
+													if (atoi(column_type[j]) == T_INT)
+													{
+														offset += (1 + sizeof(int));
+													}
+													else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+													{
+														offset += (1 + atoi(column_length[j]));
+													}
+												}
+												j++;
+											}
+											offset = 0;
+											j = 0;
+										}
+										// print value
+										avg = sum / old_header->num_records;
+										printf("%*d\n", sum_table_length + 5, avg);
+										print_separator(sum_table_length + 5);
+									}
 								}
 								else
 								{

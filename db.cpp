@@ -7980,6 +7980,178 @@ int sem_select_aggregate(token_list *t_list)
 								cur = cur->next->next;
 								if (cur->tok_value == EOC)
 								{
+									for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+									{
+										// store column name and column length in two arrays to retrieve value later for format
+										strcpy(column_names[i], col_entry->col_name);
+										sprintf(column_length[i], "%d", col_entry->col_len);
+										sprintf(column_type[i], "%d", col_entry->col_type);
+										if (strcmp(condition_columnName, col_entry->col_name) == 0)
+										{
+											column_exists = true;
+											if (col_entry->col_type == T_INT)
+											{
+												column_is_int = true;
+											}
+											else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
+											{
+												column_is_string = true;
+											}
+										}
+									}
+									for (i = 0; i < tab_entry->num_columns; i++)
+									{
+										if (strcmp(aggregate_column_name, column_names[i]) == 0)
+										{
+											column_exists = true;
+											if (strlen(column_names[i]) == MAX_IDENT_LEN)
+											{
+												sum_table_length += MAX_IDENT_LEN;
+											}
+											else
+											{
+												sum_table_length += strlen(column_names[i]);
+											}
+										}
+									}
+									if (column_exists && column_is_int)
+									{
+										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										{
+											rc = FILE_OPEN_ERROR;
+										}
+										else
+										{
+											fstat(fileno(fhandle), &file_stat);
+											old_header = (table_file_header *)calloc(1, file_stat.st_size);
+											fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+											int j = 0;
+											print_separator(sum_table_length + 5);
+											printf("count(*)\n");
+											print_separator(sum_table_length + 5);
+											char *records = NULL;
+											char *matchingRecords = NULL;
+											char *value;
+											j = 0;
+											int recordOffset = 0;
+											int offset = 0;
+											int num_matching_records = 0;
+											records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+											matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+											memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+											// loop throught to get offest of records that match
+											for (i = 0; i < old_header->num_records; i++)
+											{
+												while (j < tab_entry->num_columns)
+												{
+													value = NULL;
+													if (strcmp(condition_columnName, column_names[j]) == 0)
+													{
+														if (atoi(column_type[j]) == T_INT)
+														{
+															value = (char *)calloc(1, sizeof(int));
+															offset += 1;
+															memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), sizeof(int));
+															offset += sizeof(int);
+															char hexValue[16];
+															char temp[16];
+															memset(hexValue, '\0', 16);
+															strcat(hexValue, "0x");
+															sprintf(temp, "%x", (int)value[1]);
+															strcat(hexValue, temp);
+															sprintf(temp, "%x", (int)value[0]);
+															strcat(hexValue, temp);
+															long decimal = strtol(hexValue, NULL, 16);
+															if (decimal == 0)
+															{
+																memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																recordOffset += old_header->record_size;
+																num_matching_records += 1;
+															}
+														}
+													}
+													else
+													{
+														offset += (1 + atoi(column_length[j]));
+													}
+													j++;
+												}
+												// reset
+												offset = 0;
+												j = 0;
+											}
+											count = num_matching_records;
+											printf("%*d\n", sum_table_length + 5, count);
+											print_separator(sum_table_length + 5);
+										}
+									}
+									else if (column_exists && column_is_string)
+									{
+										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										{
+											rc = FILE_OPEN_ERROR;
+										}
+										else
+										{
+											fstat(fileno(fhandle), &file_stat);
+											old_header = (table_file_header *)calloc(1, file_stat.st_size);
+											fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+											int j = 0;
+											print_separator(sum_table_length + 5);
+											printf("count(*)\n");
+											print_separator(sum_table_length + 5);
+											char *records = NULL;
+											char *matchingRecords = NULL;
+											char *value;
+											j = 0;
+											int recordOffset = 0;
+											int offset = 0;
+											int num_matching_records = 0;
+											records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+											matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+											memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+											// loop throught to get offest of records that match
+											for (i = 0; i < old_header->num_records; i++)
+											{
+												while (j < tab_entry->num_columns)
+												{
+													value = NULL;
+													if (strcmp(condition_columnName, column_names[j]) == 0)
+													{
+														if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+														{
+															value = (char *)calloc(1, atoi(column_type[j]));
+															offset += 1;
+															memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), atoi(column_type[j]));
+															offset += atoi(column_type[j]);
+															if (strlen(value) == 0)
+															{
+																memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																recordOffset += old_header->record_size;
+																num_matching_records += 1;
+															}
+														}
+													}
+													else
+													{
+														offset += (1 + atoi(column_length[j]));
+													}
+													j++;
+												}
+												// reset
+												offset = 0;
+												j = 0;
+											}
+											count = num_matching_records;
+											printf("%*d\n", sum_table_length + 5, count);
+											print_separator(sum_table_length + 5);
+										}
+									}
+									else
+									{
+										rc = COLUMN_NOT_EXIST;
+										cur->tok_value = INVALID;
+									}
 								}
 								else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 								{
@@ -7996,6 +8168,182 @@ int sem_select_aggregate(token_list *t_list)
 								cur = cur->next->next->next;
 								if (cur->tok_value == EOC)
 								{
+									for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+									{
+										// store column name and column length in two arrays to retrieve value later for format
+										strcpy(column_names[i], col_entry->col_name);
+										sprintf(column_length[i], "%d", col_entry->col_len);
+										sprintf(column_type[i], "%d", col_entry->col_type);
+										if (strcmp(condition_columnName, col_entry->col_name) == 0)
+										{
+											column_exists = true;
+											if (col_entry->col_type == T_INT)
+											{
+												column_is_int = true;
+											}
+											else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
+											{
+												column_is_string = true;
+											}
+										}
+										if (strcmp(aggregate_column_name, col_entry->col_name) == 0)
+										{
+											aggregate_column_exists = true;
+										}
+									}
+									for (i = 0; i < tab_entry->num_columns; i++)
+									{
+										if (strcmp(aggregate_column_name, column_names[i]) == 0)
+										{
+											column_exists = true;
+											if (strlen(column_names[i]) == MAX_IDENT_LEN)
+											{
+												sum_table_length += MAX_IDENT_LEN;
+											}
+											else
+											{
+												sum_table_length += strlen(column_names[i]);
+											}
+										}
+									}
+									if (column_exists && column_is_int)
+									{
+										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										{
+											rc = FILE_OPEN_ERROR;
+										}
+										else
+										{
+											fstat(fileno(fhandle), &file_stat);
+											old_header = (table_file_header *)calloc(1, file_stat.st_size);
+											fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+											int j = 0;
+											print_separator(sum_table_length + 5);
+											printf("count(*)\n");
+											print_separator(sum_table_length + 5);
+											char *records = NULL;
+											char *matchingRecords = NULL;
+											char *value;
+											j = 0;
+											int recordOffset = 0;
+											int offset = 0;
+											int num_matching_records = 0;
+											records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+											matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+											memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+											// loop throught to get offest of records that match
+											for (i = 0; i < old_header->num_records; i++)
+											{
+												while (j < tab_entry->num_columns)
+												{
+													value = NULL;
+													if (strcmp(condition_columnName, column_names[j]) == 0)
+													{
+														if (atoi(column_type[j]) == T_INT)
+														{
+															value = (char *)calloc(1, sizeof(int));
+															offset += 1;
+															memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), sizeof(int));
+															offset += sizeof(int);
+															char hexValue[16];
+															char temp[16];
+															memset(hexValue, '\0', 16);
+															strcat(hexValue, "0x");
+															sprintf(temp, "%x", (int)value[1]);
+															strcat(hexValue, temp);
+															sprintf(temp, "%x", (int)value[0]);
+															strcat(hexValue, temp);
+															long decimal = strtol(hexValue, NULL, 16);
+															if (decimal != 0)
+															{
+																memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																recordOffset += old_header->record_size;
+																num_matching_records += 1;
+															}
+														}
+													}
+													else
+													{
+														offset += (1 + atoi(column_length[j]));
+													}
+													j++;
+												}
+												// reset
+												offset = 0;
+												j = 0;
+											}
+											count = num_matching_records;
+											printf("%*d\n", sum_table_length + 5, count);
+											print_separator(sum_table_length + 5);
+										}
+									}
+									else if (column_exists && column_is_string)
+									{
+										if ((fhandle = fopen(filename, "rbc")) == NULL)
+										{
+											rc = FILE_OPEN_ERROR;
+										}
+										else
+										{
+											fstat(fileno(fhandle), &file_stat);
+											old_header = (table_file_header *)calloc(1, file_stat.st_size);
+											fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+											int j = 0;
+											print_separator(sum_table_length + 5);
+											printf("count(*)\n");
+											print_separator(sum_table_length + 5);
+											char *records = NULL;
+											char *matchingRecords = NULL;
+											char *value;
+											j = 0;
+											int recordOffset = 0;
+											int offset = 0;
+											int num_matching_records = 0;
+											records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+											matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+											memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+											// loop throught to get offest of records that match
+											for (i = 0; i < old_header->num_records; i++)
+											{
+												while (j < tab_entry->num_columns)
+												{
+													value = NULL;
+													if (strcmp(condition_columnName, column_names[j]) == 0)
+													{
+														if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+														{
+															value = (char *)calloc(1, atoi(column_type[j]));
+															offset += 1;
+															memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), atoi(column_type[j]));
+															offset += atoi(column_type[j]);
+															if (strlen(value) != 0)
+															{
+																memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																recordOffset += old_header->record_size;
+																num_matching_records += 1;
+															}
+														}
+													}
+													else
+													{
+														offset += (1 + atoi(column_length[j]));
+													}
+													j++;
+												}
+												// reset
+												offset = 0;
+												j = 0;
+											}
+											count = num_matching_records;
+											printf("%*d\n", sum_table_length + 5, count);
+											print_separator(sum_table_length + 5);
+										}
+									}
+									else
+									{
+										rc = COLUMN_NOT_EXIST;
+										cur->tok_value = INVALID;
+									}
 								}
 								else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 								{
@@ -8925,6 +9273,182 @@ int sem_select_aggregate(token_list *t_list)
 									cur = cur->next->next;
 									if (cur->tok_value == EOC)
 									{
+										for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+										{
+											// store column name and column length in two arrays to retrieve value later for format
+											strcpy(column_names[i], col_entry->col_name);
+											sprintf(column_length[i], "%d", col_entry->col_len);
+											sprintf(column_type[i], "%d", col_entry->col_type);
+											if (strcmp(condition_columnName, col_entry->col_name) == 0)
+											{
+												column_exists = true;
+												if (col_entry->col_type == T_INT)
+												{
+													column_is_int = true;
+												}
+												else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
+												{
+													column_is_string = true;
+												}
+											}
+											if (strcmp(aggregate_column_name, col_entry->col_name) == 0)
+											{
+												aggregate_column_exists = true;
+											}
+										}
+										for (i = 0; i < tab_entry->num_columns; i++)
+										{
+											if (strcmp(aggregate_column_name, column_names[i]) == 0)
+											{
+												column_exists = true;
+												if (strlen(column_names[i]) == MAX_IDENT_LEN)
+												{
+													sum_table_length += MAX_IDENT_LEN;
+												}
+												else
+												{
+													sum_table_length += strlen(column_names[i]);
+												}
+											}
+										}
+										if (column_exists && column_is_int && aggregate_column_exists)
+										{
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												rc = FILE_OPEN_ERROR;
+											}
+											else
+											{
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+												int j = 0;
+												print_separator(sum_table_length + 5);
+												printf("count(%s)\n", aggregate_column_name);
+												print_separator(sum_table_length + 5);
+												char *records = NULL;
+												char *matchingRecords = NULL;
+												char *value;
+												j = 0;
+												int recordOffset = 0;
+												int offset = 0;
+												int num_matching_records = 0;
+												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+												matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+												// loop throught to get offest of records that match
+												for (i = 0; i < old_header->num_records; i++)
+												{
+													while (j < tab_entry->num_columns)
+													{
+														value = NULL;
+														if (strcmp(condition_columnName, column_names[j]) == 0)
+														{
+															if (atoi(column_type[j]) == T_INT)
+															{
+																value = (char *)calloc(1, sizeof(int));
+																offset += 1;
+																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), sizeof(int));
+																offset += sizeof(int);
+																char hexValue[16];
+																char temp[16];
+																memset(hexValue, '\0', 16);
+																strcat(hexValue, "0x");
+																sprintf(temp, "%x", (int)value[1]);
+																strcat(hexValue, temp);
+																sprintf(temp, "%x", (int)value[0]);
+																strcat(hexValue, temp);
+																long decimal = strtol(hexValue, NULL, 16);
+																if (decimal == 0)
+																{
+																	memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																	recordOffset += old_header->record_size;
+																	num_matching_records += 1;
+																}
+															}
+														}
+														else
+														{
+															offset += (1 + atoi(column_length[j]));
+														}
+														j++;
+													}
+													// reset
+													offset = 0;
+													j = 0;
+												}
+												count = num_matching_records;
+												printf("%*d\n", sum_table_length + 5, count);
+												print_separator(sum_table_length + 5);
+											}
+										}
+										else if (column_exists && column_is_string && aggregate_column_exists)
+										{
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												rc = FILE_OPEN_ERROR;
+											}
+											else
+											{
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+												int j = 0;
+												print_separator(sum_table_length + 5);
+												printf("count(%s)\n", aggregate_column_name);
+												print_separator(sum_table_length + 5);
+												char *records = NULL;
+												char *matchingRecords = NULL;
+												char *value;
+												j = 0;
+												int recordOffset = 0;
+												int offset = 0;
+												int num_matching_records = 0;
+												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+												matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+												// loop throught to get offest of records that match
+												for (i = 0; i < old_header->num_records; i++)
+												{
+													while (j < tab_entry->num_columns)
+													{
+														value = NULL;
+														if (strcmp(condition_columnName, column_names[j]) == 0)
+														{
+															if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+															{
+																value = (char *)calloc(1, atoi(column_type[j]));
+																offset += 1;
+																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), atoi(column_type[j]));
+																offset += atoi(column_type[j]);
+																if (strlen(value) == 0)
+																{
+																	memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																	recordOffset += old_header->record_size;
+																	num_matching_records += 1;
+																}
+															}
+														}
+														else
+														{
+															offset += (1 + atoi(column_length[j]));
+														}
+														j++;
+													}
+													// reset
+													offset = 0;
+													j = 0;
+												}
+												count = num_matching_records;
+												printf("%*d\n", sum_table_length + 5, count);
+												print_separator(sum_table_length + 5);
+											}
+										}
+										else
+										{
+											rc = COLUMN_NOT_EXIST;
+											cur->tok_value = INVALID;
+										}
 									}
 									else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 									{
@@ -8941,6 +9465,182 @@ int sem_select_aggregate(token_list *t_list)
 									cur = cur->next->next->next;
 									if (cur->tok_value == EOC)
 									{
+										for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+										{
+											// store column name and column length in two arrays to retrieve value later for format
+											strcpy(column_names[i], col_entry->col_name);
+											sprintf(column_length[i], "%d", col_entry->col_len);
+											sprintf(column_type[i], "%d", col_entry->col_type);
+											if (strcmp(condition_columnName, col_entry->col_name) == 0)
+											{
+												column_exists = true;
+												if (col_entry->col_type == T_INT)
+												{
+													column_is_int = true;
+												}
+												else if ((col_entry->col_type == T_CHAR) || (col_entry->col_type == T_VARCHAR))
+												{
+													column_is_string = true;
+												}
+											}
+											if (strcmp(aggregate_column_name, col_entry->col_name) == 0)
+											{
+												aggregate_column_exists = true;
+											}
+										}
+										for (i = 0; i < tab_entry->num_columns; i++)
+										{
+											if (strcmp(aggregate_column_name, column_names[i]) == 0)
+											{
+												column_exists = true;
+												if (strlen(column_names[i]) == MAX_IDENT_LEN)
+												{
+													sum_table_length += MAX_IDENT_LEN;
+												}
+												else
+												{
+													sum_table_length += strlen(column_names[i]);
+												}
+											}
+										}
+										if (column_exists && column_is_int && aggregate_column_exists)
+										{
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												rc = FILE_OPEN_ERROR;
+											}
+											else
+											{
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+												int j = 0;
+												print_separator(sum_table_length + 5);
+												printf("count(%s)\n", aggregate_column_name);
+												print_separator(sum_table_length + 5);
+												char *records = NULL;
+												char *matchingRecords = NULL;
+												char *value;
+												j = 0;
+												int recordOffset = 0;
+												int offset = 0;
+												int num_matching_records = 0;
+												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+												matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+												// loop throught to get offest of records that match
+												for (i = 0; i < old_header->num_records; i++)
+												{
+													while (j < tab_entry->num_columns)
+													{
+														value = NULL;
+														if (strcmp(condition_columnName, column_names[j]) == 0)
+														{
+															if (atoi(column_type[j]) == T_INT)
+															{
+																value = (char *)calloc(1, sizeof(int));
+																offset += 1;
+																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), sizeof(int));
+																offset += sizeof(int);
+																char hexValue[16];
+																char temp[16];
+																memset(hexValue, '\0', 16);
+																strcat(hexValue, "0x");
+																sprintf(temp, "%x", (int)value[1]);
+																strcat(hexValue, temp);
+																sprintf(temp, "%x", (int)value[0]);
+																strcat(hexValue, temp);
+																long decimal = strtol(hexValue, NULL, 16);
+																if (decimal != 0)
+																{
+																	memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																	recordOffset += old_header->record_size;
+																	num_matching_records += 1;
+																}
+															}
+														}
+														else
+														{
+															offset += (1 + atoi(column_length[j]));
+														}
+														j++;
+													}
+													// reset
+													offset = 0;
+													j = 0;
+												}
+												count = num_matching_records;
+												printf("%*d\n", sum_table_length + 5, count);
+												print_separator(sum_table_length + 5);
+											}
+										}
+										else if (column_exists && column_is_string && aggregate_column_exists)
+										{
+											if ((fhandle = fopen(filename, "rbc")) == NULL)
+											{
+												rc = FILE_OPEN_ERROR;
+											}
+											else
+											{
+												fstat(fileno(fhandle), &file_stat);
+												old_header = (table_file_header *)calloc(1, file_stat.st_size);
+												fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+												int j = 0;
+												print_separator(sum_table_length + 5);
+												printf("count(%s)\n", aggregate_column_name);
+												print_separator(sum_table_length + 5);
+												char *records = NULL;
+												char *matchingRecords = NULL;
+												char *value;
+												j = 0;
+												int recordOffset = 0;
+												int offset = 0;
+												int num_matching_records = 0;
+												records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+												matchingRecords = (char *)calloc(1, (100 * old_header->record_size));
+												memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+												// loop throught to get offest of records that match
+												for (i = 0; i < old_header->num_records; i++)
+												{
+													while (j < tab_entry->num_columns)
+													{
+														value = NULL;
+														if (strcmp(condition_columnName, column_names[j]) == 0)
+														{
+															if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+															{
+																value = (char *)calloc(1, atoi(column_type[j]));
+																offset += 1;
+																memcpy((void *)((char *)value), (void *)((char *)records + (i * old_header->record_size) + offset), atoi(column_type[j]));
+																offset += atoi(column_type[j]);
+																if (strlen(value) != 0)
+																{
+																	memcpy((void *)((char *)matchingRecords + recordOffset), (void *)((char *)records + (i * old_header->record_size)), old_header->record_size);
+																	recordOffset += old_header->record_size;
+																	num_matching_records += 1;
+																}
+															}
+														}
+														else
+														{
+															offset += (1 + atoi(column_length[j]));
+														}
+														j++;
+													}
+													// reset
+													offset = 0;
+													j = 0;
+												}
+												count = num_matching_records;
+												printf("%*d\n", sum_table_length + 5, count);
+												print_separator(sum_table_length + 5);
+											}
+										}
+										else
+										{
+											rc = COLUMN_NOT_EXIST;
+											cur->tok_value = INVALID;
+										}
 									}
 									else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 									{

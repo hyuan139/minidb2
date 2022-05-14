@@ -1180,10 +1180,22 @@ int sem_select_star(token_list *t_list)
 	char column_length[MAX_NUM_COL][MAX_IDENT_LEN];
 	char column_type[MAX_NUM_COL][MAX_IDENT_LEN];
 	int i;
+	int j;
 	int length_for_print = 0;
-	int length_arr_indexes[MAX_NUM_COL];
+	int length_arr_indexes[MAX_NUM_COL * 2];
 	int num_col_index = 0;
 	int sum_table_length = 0;
+	bool get_condition_columns_done = false;
+	char condition_columnName[MAX_TOK_LEN];
+	int condition_operator[MAX_NUM_COL]; // 0 -> equal, 1 -> less than, 2 -> greater than, 3 -> IS NULL, 4 IS NOT NULL
+	int boolean_operator[MAX_NUM_COL];	 // 0 -> AND, 1 -> OR
+	char condition_values_string[MAX_TOK_LEN];
+	int condition_values_int = 0;
+	char order_by_column[MAX_TOK_LEN];
+	bool column_exists = false;
+	bool column_is_int = false;
+	bool column_is_string = false;
+	char *records;
 	printf("SELECT * statement\n");
 	// from keyword -> next token
 	cur = cur->next; // table name
@@ -1365,22 +1377,779 @@ int sem_select_star(token_list *t_list)
 	{
 		cur = cur->next->next;
 		printf("Has natural join keyword\n");
-		printf("Token: %s\n", cur->tok_string);
-		// TODO: Further processing
+		char tablename2[MAX_TOK_LEN];
+		char filename2[MAX_TOK_LEN + 4];
+		strcpy(tablename2, cur->tok_string);
+		strcpy(filename2, strcat(cur->tok_string, ".tab"));
+		cur = cur->next;
+		if (cur->tok_value == EOC)
+		{
+			printf("Select natural join no other options\n");
+			tpd_entry *tab_entry2 = NULL;
+			cd_entry *col_entry2 = NULL;
+			table_file_header *old_header2 = NULL;
+			struct stat file_stat2;
+			char column_names2[MAX_NUM_COL][MAX_IDENT_LEN];
+			char column_length2[MAX_NUM_COL][MAX_IDENT_LEN];
+			char column_type2[MAX_NUM_COL][MAX_IDENT_LEN];
+			bool has_common_columns = false;
+			if (((tab_entry = get_tpd_from_list(tablename)) != NULL) && ((tab_entry2 = get_tpd_from_list(tablename2)) != NULL))
+			{
+				// get column info for table 1
+				for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+				{
+					strcpy(column_names[i], col_entry->col_name);
+					sprintf(column_length[i], "%d", col_entry->col_len);
+					sprintf(column_type[i], "%d", col_entry->col_type);
+					if (length_for_print < atoi(column_length[i]))
+					{
+						// set the leader length value
+						length_for_print = atoi(column_length[i]);
+					}
+				}
+				// get column info for table 2
+				for (i = 0, col_entry2 = (cd_entry *)((char *)tab_entry2 + tab_entry2->cd_offset); i < tab_entry2->num_columns; i++, col_entry2++)
+				{
+					strcpy(column_names2[i], col_entry2->col_name);
+					sprintf(column_length2[i], "%d", col_entry2->col_len);
+					sprintf(column_type2[i], "%d", col_entry2->col_type);
+					if (length_for_print < atoi(column_length[i]))
+					{
+						// set the leader length value
+						length_for_print = atoi(column_length[i]);
+					}
+				}
+				// find common column (type should match too)
+				if (tab_entry->num_columns > tab_entry2->num_columns)
+				{
+					// table 1 is larger, so will be outer loop
+					for (i = 0; i < tab_entry->num_columns; i++)
+					{
+						for (j = 0; j < tab_entry2->num_columns; j++)
+						{
+							// matching column name
+							if (strcmp(column_names[i], column_names2[j]) == 0)
+							{
+								if (atoi(column_type[i]) == atoi(column_type2[j]))
+								{
+									has_common_columns = true;
+								}
+								else
+								{
+									break;
+								}
+							}
+						}
+					}
+					if (has_common_columns)
+					{
+						bool done = false;
+						int index1 = 0;
+						int index2 = 0;
+						int tab1_num_cols = tab_entry->num_columns;
+						int tab2_num_cols = tab_entry2->num_columns;
+						int table1_common_col = 0;
+						int table2_common_col = 0;
+						int length_for_small_column = 0;
+						if (length_for_print < 10)
+						{
+							length_for_small_column = length_for_print * 2;
+						}
+						else
+						{
+							length_for_small_column = length_for_print / 2; // length for the table divider for small column lengths
+						}
+						while (!done)
+						{
+							// travered all the columns
+							if ((index1 == tab1_num_cols) && (index2 == tab2_num_cols))
+							{
+								done = true;
+							}
+							else if (strcmp(column_names[index1], column_names2[index2]) == 0)
+							{
+								// common column
+								if (atoi(column_type[index1]) == T_INT)
+								{
+									printf("%*s", length_for_small_column, column_names[index1]);
+									sum_table_length = length_for_small_column + 2;
+								}
+								else
+								{
+									if (atoi(column_length[index1]) < 5)
+									{
+										printf("%-*s", length_for_small_column, column_names[index1]);
+										sum_table_length += length_for_small_column + 2;
+									}
+									else
+									{
+										printf("%-*s", atoi(column_length[index1]), column_names[index1]);
+										sum_table_length += atoi(column_length[i]) + 2;
+									}
+								}
+								table1_common_col = index1;
+								table2_common_col = index2;
+								index1++;
+								index2++;
+							}
+							// print table1 column names first
+							else if (index1 < tab1_num_cols)
+							{
+								if (atoi(column_type[index1]) == T_INT)
+								{
+									printf("%*s", length_for_small_column, column_names[index1]);
+									sum_table_length = length_for_small_column + 2;
+								}
+								else
+								{
+									if (atoi(column_length[index1]) < 5)
+									{
+										printf("%-*s", length_for_small_column, column_names[index1]);
+										sum_table_length += length_for_small_column + 2;
+									}
+									else
+									{
+										printf("%-*s", atoi(column_length[index1]), column_names[index1]);
+										sum_table_length += atoi(column_length[i]) + 2;
+									}
+								}
+								index1++;
+							}
+							else if (index2 < tab2_num_cols)
+							{
+								if (atoi(column_type2[index2]) == T_INT)
+								{
+									printf("%*s", atoi(column_length2[index2]), column_names2[index2]);
+								}
+								else
+								{
+									if (atoi(column_length2[index2]) < 5)
+									{
+										printf("%-*s", length_for_small_column, column_names[index2]);
+										sum_table_length += length_for_small_column + 2;
+									}
+									else
+									{
+										printf("%-*s", atoi(column_length2[index2]), column_names2[index2]);
+										sum_table_length += atoi(column_length2[index2]) + 2;
+									}
+								}
+								index2++;
+							}
+						}
+					}
+					else
+					{
+						rc = INVALID_NATURAL_JOIN;
+						cur->tok_value = INVALID;
+					}
+				}
+				else
+				{
+					// table 2 is larger, so will be outer loop
+				}
+			}
+			else
+			{
+				rc = TABLE_NOT_EXIST;
+				cur->tok_value = INVALID;
+			}
+		}
+		else if (cur->tok_value == K_WHERE)
+		{
+			printf("Select natural join with where clause\n");
+		}
+		else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY) && (cur->next->next->tok_value == K_DESC))
+		{
+			cur = cur->next->next->next;
+			if (cur->tok_value == EOC)
+			{
+				printf("Select natural join with order by clause\n");
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_value = INVALID;
+			}
+		}
+		else
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_value = INVALID;
+		}
 	}
 	else if (cur->tok_value == K_WHERE)
 	{
 		cur = cur->next;
 		printf("Statement has WHERE\n");
-		printf("Token: %s\n", cur->tok_string);
-		// TODO: Further processing
+		//  TODO: Further processing
+		i = 0;										   // reset
+		strcpy(condition_columnName, cur->tok_string); // copy column name
+		cur = cur->next;
+		// check for relational operator
+		if (cur->tok_value == S_EQUAL)
+		{
+			cur = cur->next;
+			if (cur->tok_value == INT_LITERAL)
+			{
+				condition_values_int = atoi(cur->tok_string);
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+						{
+							// store column name and column length in two arrays to retrieve value later for format
+							strcpy(column_names[i], col_entry->col_name);
+							sprintf(column_length[i], "%d", col_entry->col_len);
+							sprintf(column_type[i], "%d", col_entry->col_type);
+							if (length_for_print < atoi(column_length[i]))
+							{
+								// set the leader length value
+								length_for_print = atoi(column_length[i]);
+							}
+						}
+						if ((fhandle = fopen(filename, "rbc")) == NULL)
+						{
+							rc = FILE_OPEN_ERROR;
+						}
+						else
+						{
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+							int j = 0;
+							int length_for_small_column = 0;
+							if (length_for_print < 10)
+							{
+								length_for_small_column = length_for_print * 2;
+							}
+							else
+							{
+								length_for_small_column = length_for_print / 2; // length for the table divider for small column lengths
+							}
+
+							// TODO: Fix Formatting later
+							for (i = 0; i < tab_entry->num_columns; i++)
+							{
+								if (atoi(column_type[i]) == T_INT)
+								{
+									length_arr_indexes[i] = length_for_small_column;
+									sum_table_length += length_for_small_column + 2;
+								}
+								else if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+								{
+									if (atoi(column_length[i]) < 5)
+									{
+										length_arr_indexes[i] = length_for_small_column;
+										sum_table_length += length_for_small_column + 2;
+									}
+									else
+									{
+										length_arr_indexes[i] = atoi(column_length[i]);
+										sum_table_length += atoi(column_length[i]) + 2;
+									}
+								}
+							}
+							print_separator(sum_table_length + 1);
+							while (j < tab_entry->num_columns)
+							{
+								if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
+								{
+									printf("%*s", length_arr_indexes[j], column_names[j]);
+								}
+								else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
+								{
+									printf("%-*s|", length_arr_indexes[j], column_names[j]);
+								}
+								else if ((atoi(column_type[j]) == T_INT))
+								{
+									printf("%*s | ", length_arr_indexes[j], column_names[j]);
+								}
+								else if (((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
+								{
+									printf("%-*s | ", length_arr_indexes[j], column_names[j]);
+								}
+								j++;
+							}
+							printf("\n");
+							print_separator(sum_table_length + 1);
+							char *record = NULL;
+							char *value;
+							j = 0;
+							int recordOffset = 0;
+							for (i = 0; i < old_header->num_records; i++)
+							{
+								record = (char *)calloc(1, old_header->record_size);
+								memcpy((void *)((char *)record), (void *)((char *)old_header + old_header->record_offset + (i * old_header->record_size)), old_header->record_size);
+								while (j < tab_entry->num_columns)
+								{
+									if (strcmp(condition_columnName, column_names[j]))
+									{
+										if (column_is_int)
+										{
+										}
+										else if (column_is_string)
+										{
+										}
+									}
+									value = NULL;
+									if (atoi(column_type[j]) == T_INT)
+									{
+										// process as a int
+										value = (char *)calloc(1, sizeof(int));
+										recordOffset += 1; // account for length byte
+										memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), sizeof(int));
+										recordOffset += sizeof(int);
+										char hexValue[16];
+										char temp[16];
+										memset(hexValue, '\0', 16);
+										strcat(hexValue, "0x");
+										sprintf(temp, "%x", (int)value[1]);
+										strcat(hexValue, temp);
+										sprintf(temp, "%x", (int)value[0]);
+										strcat(hexValue, temp);
+										long decimal = strtol(hexValue, NULL, 16);
+										if ((j == tab_entry->num_columns - 1) && (decimal != 0))
+										{
+											printf("%*ld", length_arr_indexes[j], decimal);
+										}
+										else if ((j == tab_entry->num_columns - 1) && (decimal == 0))
+										{
+											printf("%*s", length_arr_indexes[j], " -");
+										}
+										else if ((decimal != 0))
+										{
+											printf("%*ld | ", length_arr_indexes[j], decimal);
+										}
+										else if ((decimal == 0))
+										{
+											printf("%*s | ", length_arr_indexes[j], " -");
+										}
+									}
+									else if ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR))
+									{
+										// process as string
+										value = (char *)calloc(1, atoi(column_length[j]));
+										recordOffset += 1; // account for btye for length of the value
+										memcpy((void *)((char *)value), (void *)((char *)record + recordOffset), atoi(column_length[j]));
+										recordOffset += atoi(column_length[j]);
+										if ((j == tab_entry->num_columns - 1) && (strlen(value) != 0))
+										{
+											printf("%-*s", length_arr_indexes[j], value);
+										}
+										else if ((j == tab_entry->num_columns - 1) && (strlen(value) == 0))
+										{
+											printf("%-*s", length_arr_indexes[j], " -");
+										}
+										else if ((strlen(value) != 0))
+										{
+											printf("%-*s | ", length_arr_indexes[j], value);
+										}
+										else if ((strlen(value) == 0))
+										{
+											printf("%-*s | ", length_arr_indexes[j], " -");
+										}
+									}
+									// account for null
+									free(value);
+									j++;
+								}
+								free(record);
+								record = NULL;
+								recordOffset = 0;
+								j = 0;
+								printf("\n");
+							}
+							// print end divider
+							print_separator(sum_table_length + 1);
+						}
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+			}
+			else if (cur->tok_value == STRING_LITERAL)
+			{
+				strcpy(condition_values_string, cur->tok_string);
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					printf("select * where ... with no more options\n");
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// continue
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+		}
+		else if (cur->tok_value == S_LESS)
+		{
+			cur = cur->next;
+			if (cur->tok_value == INT_LITERAL)
+			{
+				condition_values_int = atoi(cur->tok_string);
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					printf("select * where ... with no more options\n");
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// continue
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+			}
+			else if (cur->tok_value == STRING_LITERAL)
+			{
+				strcpy(condition_values_string, cur->tok_string);
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					printf("select * where ... with no more options\n");
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// continue
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+		}
+		else if (cur->tok_value == S_GREATER)
+		{
+			cur = cur->next;
+			if (cur->tok_value == INT_LITERAL)
+			{
+				condition_values_int = atoi(cur->tok_string);
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					printf("select * where ... with no more options\n");
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// continue
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+			}
+			else if (cur->tok_value == STRING_LITERAL)
+			{
+				strcpy(condition_values_string, cur->tok_string);
+				cur = cur->next;
+				if (cur->tok_value == EOC)
+				{
+					printf("select * where ... with no more options\n");
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// continue
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_class = error;
+				cur->tok_value = INVALID;
+			}
+		}
+		else if ((cur->tok_value == K_IS) && (cur->next->tok_value == K_NULL))
+		{
+			cur = cur->next->next;
+			if (cur->tok_value == EOC)
+			{
+				printf("select * where ... with no more options\n");
+				if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+				{
+					rc = TABLE_NOT_EXIST;
+					cur->tok_value = INVALID;
+				}
+				else
+				{
+					// continue
+				}
+			}
+			else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+			{
+				printf("select column name where ... with ORDER BY\n");
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_value = INVALID;
+			}
+		}
+		else if ((cur->tok_value == K_IS) && (cur->next->tok_value == K_NOT) && (cur->next->next->tok_value == K_NULL))
+		{
+			cur = cur->next->next->next;
+			if (cur->tok_value == EOC)
+			{
+				printf("select * where ... with no more options\n");
+				if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+				{
+					rc = TABLE_NOT_EXIST;
+					cur->tok_value = INVALID;
+				}
+				else
+				{
+					// continue
+				}
+			}
+			else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+			{
+				printf("select column name where ... with ORDER BY\n");
+			}
+			else
+			{
+				rc = INVALID_SELECT_DEFINITION;
+				cur->tok_value = INVALID;
+			}
+		}
+		else
+		{
+			rc = INVALID_SELECT_DEFINITION;
+			cur->tok_value = INVALID;
+		}
 	}
 	else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 	{
 		cur = cur->next->next;
+		strcpy(order_by_column, cur->tok_string);
+		cur = cur->next;
 		if (cur->tok_value == K_DESC)
 		{
-			printf("Statement has ORDER BY %s\n", cur->tok_string);
+			if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+			{
+				rc = TABLE_NOT_EXIST;
+				cur->tok_value = INVALID;
+			}
+			else
+			{
+				for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
+				{
+					// store column name and column length in two arrays to retrieve value later for format
+					strcpy(column_names[i], col_entry->col_name);
+					sprintf(column_length[i], "%d", col_entry->col_len);
+					sprintf(column_type[i], "%d", col_entry->col_type);
+					if (length_for_print < atoi(column_length[i]))
+					{
+						// set the leader length value
+						length_for_print = atoi(column_length[i]);
+					}
+				}
+				for (i = 0; i < tab_entry->num_columns; i++)
+				{
+					if (strcmp(order_by_column, column_names[i]) == 0)
+					{
+						column_exists = true;
+						if (atoi(column_type[i]) == T_INT)
+						{
+							column_is_int = true;
+						}
+						else
+						{
+							column_is_string = true;
+						}
+						break;
+					}
+				}
+				if (column_exists)
+				{
+					j = 0;
+					int length_for_small_column = 0;
+					if (length_for_print < 10)
+					{
+						length_for_small_column = length_for_print * 2;
+					}
+					else
+					{
+						length_for_small_column = length_for_print / 2; // length for the table divider for small column lengths
+					}
+					for (i = 0; i < tab_entry->num_columns; i++)
+					{
+						if (atoi(column_type[i]) == T_INT)
+						{
+							length_arr_indexes[i] = length_for_small_column;
+							sum_table_length += length_for_small_column + 2;
+						}
+						else if ((atoi(column_type[i]) == T_CHAR) || (atoi(column_type[i]) == T_VARCHAR))
+						{
+							if (atoi(column_length[i]) < 5)
+							{
+								length_arr_indexes[i] = length_for_small_column;
+								sum_table_length += length_for_small_column + 2;
+							}
+							else
+							{
+								length_arr_indexes[i] = atoi(column_length[i]);
+								sum_table_length += atoi(column_length[i]) + 2;
+							}
+						}
+					}
+					print_separator(sum_table_length + 1);
+					while (j < tab_entry->num_columns)
+					{
+						if ((j == tab_entry->num_columns - 1) && (atoi(column_type[j]) == T_INT))
+						{
+							printf("%*s", length_arr_indexes[j], column_names[j]);
+						}
+						else if ((j == tab_entry->num_columns - 1) && ((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
+						{
+							printf("%-*s|", length_arr_indexes[j], column_names[j]);
+						}
+						else if ((atoi(column_type[j]) == T_INT))
+						{
+							printf("%*s | ", length_arr_indexes[j], column_names[j]);
+						}
+						else if (((atoi(column_type[j]) == T_CHAR) || (atoi(column_type[j]) == T_VARCHAR)))
+						{
+							printf("%-*s | ", length_arr_indexes[j], column_names[j]);
+						}
+						j++;
+					}
+					printf("\n");
+					print_separator(sum_table_length + 1);
+					if ((fhandle = fopen(filename, "rbc")) == NULL)
+					{
+						rc = FILE_OPEN_ERROR;
+					}
+					else
+					{
+						fstat(fileno(fhandle), &file_stat);
+						old_header = (table_file_header *)calloc(1, file_stat.st_size);
+						fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+						int j = 0;
+						int offset = 0;
+						char *value;
+						records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+						memcpy((void *)((char *)records), (void *)((char *)old_header + old_header->record_offset), (old_header->num_records * old_header->record_size));
+						char *sorted_records = (char *)calloc(1, (old_header->num_records * old_header->record_size));
+						int location_of_records[100];
+						for (i = 0; i < old_header->num_records; i++)
+						{
+							location_of_records[i] = offset;
+							offset += old_header->record_size;
+						}
+						offset = 0;
+						int k = 0;
+						for (i = 0; i < old_header->num_records - 1; i++)
+						{
+							for (j = i + 1; j < old_header->num_records; i++)
+							{
+								while (k < tab_entry->num_columns)
+								{
+									if (strcmp(order_by_column, column_names[k]) == 0)
+									{
+										if (column_is_int)
+										{
+										}
+										else if (column_is_string)
+										{
+										}
+									}
+									k++;
+								}
+							}
+						}
+					}
+				}
+				else
+				{
+					rc = COLUMN_NOT_EXIST;
+					cur->tok_value = INVALID;
+				}
+			}
 		}
 		else
 		{
@@ -1715,7 +2484,6 @@ int sem_select_project(token_list *t_list)
 			{
 				cur = cur->next;
 				printf("Statement has WHERE\n");
-				printf("Token: %s\n", cur->tok_string);
 				//  TODO: Further processing
 				i = 0; // reset
 				do
@@ -1787,12 +2555,12 @@ int sem_select_project(token_list *t_list)
 							cur->tok_value = INVALID;
 						}
 					}
-					else if ((cur->tok_value == K_IS) && (cur->tok_value == K_NULL))
+					else if ((cur->tok_value == K_IS) && (cur->next->tok_value == K_NULL))
 					{
 						condition_operator[i] = 3;
 						cur = cur->next->next;
 					}
-					else if ((cur->tok_value == K_IS) && (cur->tok_value == K_NOT) && (cur->tok_value == K_NULL))
+					else if ((cur->tok_value == K_IS) && (cur->next->tok_value == K_NOT) && (cur->next->next->tok_value == K_NULL))
 					{
 						condition_operator[i] = 4;
 						cur = cur->next->next->next;
@@ -1801,24 +2569,44 @@ int sem_select_project(token_list *t_list)
 					{
 						if (cur->tok_value == K_AND)
 						{
-							printf("Token: %s\n", cur->tok_string);
 							boolean_operator[i] = 0;
 							cur = cur->next;
 						}
 						else
 						{
-							printf("Token: %s\n", cur->tok_string);
 							boolean_operator[i] = 1;
 							cur = cur->next;
 						}
 					}
-					if (cur->tok_value == EOC)
+					else
 					{
 						get_condition_columns_done = true;
 					}
 					i++;
 
 				} while (!get_condition_columns_done);
+				if (cur->tok_value == EOC)
+				{
+					printf("select column name where ... with no more options\n");
+					if ((tab_entry = get_tpd_from_list(tablename)) == NULL)
+					{
+						rc = TABLE_NOT_EXIST;
+						cur->tok_value = INVALID;
+					}
+					else
+					{
+						// continue
+					}
+				}
+				else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
+				{
+					printf("select column name where ... with ORDER BY\n");
+				}
+				else
+				{
+					rc = INVALID_SELECT_DEFINITION;
+					cur->tok_value = INVALID;
+				}
 			}
 			else if ((cur->tok_value == K_ORDER) && (cur->next->tok_value == K_BY))
 			{

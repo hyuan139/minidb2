@@ -2269,7 +2269,23 @@ int sem_select_aggregate(token_list *t_list)
 					cur = cur->next;
 					if (cur->tok_value == EOC)
 					{
-						printf("Valid count(*) aggregate with no options\n");
+						print_separator(sum_table_length + 8);
+						printf("count(*)\n");
+						print_separator(sum_table_length + 8);
+						if ((fhandle = fopen(filename, "rbc")) == NULL)
+						{
+							rc = FILE_OPEN_ERROR;
+						}
+						else
+						{
+							fstat(fileno(fhandle), &file_stat);
+							old_header = (table_file_header *)calloc(1, file_stat.st_size);
+							fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+							count = old_header->num_records;
+							// print value
+							printf("%*d\n", sum_table_length + 8, count);
+							print_separator(sum_table_length + 8);
+						}
 					}
 					else
 					{
@@ -2352,12 +2368,36 @@ int sem_select_aggregate(token_list *t_list)
 								if (strcmp(aggregate_column_name, column_names[i]) == 0)
 								{
 									column_exists = true;
+									if (strlen(column_names[i]) == MAX_IDENT_LEN)
+									{
+										sum_table_length += MAX_IDENT_LEN;
+									}
+									else
+									{
+										sum_table_length += strlen(column_names[i]);
+									}
 									break;
 								}
 							}
 							if (column_exists)
 							{
-								printf("Column exists.\n");
+								print_separator(sum_table_length + 8);
+								printf("count(%s)\n", aggregate_column_name);
+								print_separator(sum_table_length + 8);
+								if ((fhandle = fopen(filename, "rbc")) == NULL)
+								{
+									rc = FILE_OPEN_ERROR;
+								}
+								else
+								{
+									fstat(fileno(fhandle), &file_stat);
+									old_header = (table_file_header *)calloc(1, file_stat.st_size);
+									fread((void *)((char *)old_header), file_stat.st_size, 1, fhandle);
+									count = old_header->num_records;
+									// print value
+									printf("%*d\n", sum_table_length + 8, count);
+									print_separator(sum_table_length + 8);
+								}
 							}
 							else
 							{

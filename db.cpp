@@ -978,6 +978,8 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 	char column_values[MAX_NUM_COL][1024];
 	char **record_ptr;
 	char *old_file;
+	char column_names[MAX_NUM_COL][MAX_TOK_LEN];
+	char column_types[MAX_NUM_COL][MAX_TOK_LEN];
 	oldFileSize = old_header->file_size;
 	old_file = (char *)calloc(1, oldFileSize);
 	bool colNull[MAX_NUM_COL];
@@ -1046,6 +1048,7 @@ int add_row_to_file(table_file_header *old_head, token_list *t_list)
 			} while ((rc == 0) && !column_done);
 		}
 	}
+
 	if (!rc)
 	{
 		strcpy(tablename, tab_entry->table_name);
@@ -1581,7 +1584,6 @@ int sem_select_star(token_list *t_list)
 	else if (cur->tok_value == K_WHERE)
 	{
 		cur = cur->next;
-		printf("Statement has WHERE\n");
 		//  TODO: Further processing
 		i = 0;										   // reset
 		strcpy(condition_columnName, cur->tok_string); // copy column name
@@ -7265,7 +7267,6 @@ int sem_select_aggregate(token_list *t_list)
 	char condition_values_string[MAX_TOK_LEN];
 	bool aggregate_column_exists = false;
 	bool aggregate_column_is_int = false;
-	printf("SELECT statement with aggregate\n");
 	if (cur->tok_value == F_SUM)
 	{
 		// sum aggregate
@@ -7311,7 +7312,6 @@ int sem_select_aggregate(token_list *t_list)
 						cur = cur->next;
 						if (cur->tok_value == EOC)
 						{
-							printf("Valid sum aggregate command with no other options\n");
 							// read the table, check if column name exists && check if column is a valid integer column, if not error out
 							for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
 							{
@@ -12192,7 +12192,6 @@ int sem_select_aggregate(token_list *t_list)
 						cur = cur->next;
 						if (cur->tok_value == EOC)
 						{
-							printf("Valid count aggregate command with no other options\n");
 							// read the table, check if column name exists && check if column is a valid integer column, if not error out
 							for (i = 0, col_entry = (cd_entry *)((char *)tab_entry + tab_entry->cd_offset); i < tab_entry->num_columns; i++, col_entry++)
 							{
@@ -13450,7 +13449,6 @@ int sem_select_aggregate(token_list *t_list)
 int sem_delete(token_list *t_list)
 {
 	int rc = 0;
-	printf("PREPARING TO DELETE\n");
 	token_list *cur;
 	cur = t_list;
 	table_file_header *old_header = NULL;
@@ -13482,7 +13480,6 @@ int sem_delete(token_list *t_list)
 	if (cur->next->tok_value == K_WHERE)
 	{
 		cur = cur->next->next;
-		printf("Delete with WHERE condition\n");
 		if ((cur->tok_value == S_EQUAL) || (cur->tok_value == INT_LITERAL) || (cur->tok_value == STRING_LITERAL))
 		{
 			rc = INVALID_DELETE_DEFINITION;
@@ -14713,8 +14710,6 @@ int sem_delete(token_list *t_list)
 	else
 	{
 		// Delete with no WHERE condition
-		// TODO: Possible do error checking to make sure correct command
-		printf("Delete with NO WHERE condition\n");
 		if ((fhandle = fopen(filename, "rbc")) == NULL)
 		{
 			printf("Error while opening %s file\n", filename);
@@ -14748,7 +14743,6 @@ int sem_delete(token_list *t_list)
 int sem_update(token_list *t_list)
 {
 	int rc = 0;
-	printf("PREPARING TO UPDATE\n");
 	token_list *cur;
 	cur = t_list;
 	table_file_header *old_header = NULL;
@@ -15788,7 +15782,6 @@ int sem_update(token_list *t_list)
 							else
 							{
 								// UPDATE no WHERE condition for SET column = <INT LITERAL>
-								printf("Everything looks good. starting update w/o where\n");
 								if ((fhandle = fopen(filename, "rbc")) == NULL)
 								{
 									printf("Error while opening %s file\n", filename);
@@ -16848,7 +16841,6 @@ int sem_update(token_list *t_list)
 							else
 							{
 								// update w/o where SET column = <STRING LITERAL>
-								printf("Everything looks good. starting update w/o where\n");
 								if ((fhandle = fopen(filename, "rbc")) == NULL)
 								{
 									printf("Error while opening %s file\n", filename);

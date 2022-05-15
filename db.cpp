@@ -14733,7 +14733,7 @@ int sem_delete(token_list *t_list)
 				new_header = (table_file_header *)calloc(1, sizeof(table_file_header));
 				memcpy((void *)(new_header), (void *)(old_header), sizeof(table_file_header));
 				fwrite(new_header, sizeof(table_file_header), 1, fhandle);
-				printf("Delete Sucess! Number of rows affected (%d)", new_header->num_records);
+				printf("Delete Sucess! All rows affected");
 			}
 		}
 	}

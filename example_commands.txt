@@ -51,3 +51,6 @@ Below are example commands:
 ./db "select * from grades"
 
 ./db "drop table grades"
+
+./db "list table"
+./db "list schema for students"

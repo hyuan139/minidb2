@@ -1,0 +1,53 @@
+To compile (Windows/Mac):
+gcc -o db db.cpp
+
+To run:
+./db "COMMAND_HERE"
+
+Below are example commands:
+
+./db "select * from students"
+./db "create table students(name char(20), ID int, gender char(1), scores int)"
+./db "insert into students values ('John F Kennedy', 10001, 'M', 99)"
+./db "insert into students values ('Bill Clinton', 10002, 'M', 85)"
+./db "insert into students values ('Donald Trump', 10003, 'M', 95)"
+./db "insert into students values ('Alice Boyer', NULL, 'F', 79)"
+./db "insert into students values (NULL, 10001, 'M', 99)"
+./db "insert into students values ('Just Just', 10004, 'M', 95)"
+
+./db "delete from students where gender = 'M'"
+./db "delete from students where ID = 10003"
+./db "delete from students where name = 'Bill Clinton'"
+./db "delete from students where name = 'John F Kennedy'"
+./db "delete from students where name = 'Donald Trump'"
+./db "update students set scores = 75"
+./db "update students set gender = 'F'"
+./db "update students set name = 'Barry Allen'"
+./db "update students set ID = 11111"
+
+./db "update students set  ID = 10001 where gender = 'M'"
+./db "update students set  scores = 100 where ID = 10001"
+./db "update students set  name = 'Allen Strange' where ID = 10001"
+./db "update students set  name = NULL where ID = 10003"
+./db "select * from students where ID = 10003"
+./db "select name from students where gender = 'M'"
+
+./db "drop table students"
+
+./db "create table test(ID char(4), quiz int, final int)"
+
+./db "create table grades(ID int, quiz int, final int)"
+./db "insert into grades values (10001, 70, 71)"
+./db "insert into grades values (10002, 80, 81)"
+./db "insert into grades values (10001, 80, 81)"
+./db "insert into grades values (10005, 90, 91)"
+./db "delete from grades where ID < 10003"
+./db "delete from grades where quiz < 89"
+./db "delete from grades where quiz > 75"
+
+./db "update grades set ID = 10009"
+./db "update grades set final = 100"
+./db "update grades set quiz = 50"
+./db "select * from grades"
+
+./db "drop table grades"
